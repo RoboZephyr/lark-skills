@@ -8,7 +8,7 @@
 |---|---|---|
 | Agent 框架 | Claude Code (CC) | Skill / subagent 原生支持，定时任务可通过 launchd + `claude -p` 触发 |
 | 飞书集成 | `lark-cli`（CLI） | 纯命令行调用，不依赖 SDK / 运行时；适合 Agent 直接操作 |
-| 数据采集 | python3 脚本 | 处理 GitLab/GitHub API 分页、并发、格式化 |
+| 数据采集 | python3 脚本 | 处理 GitHub/GitLab API 分页、并发、格式化 |
 | 配置管理 | YAML (`config.yaml`) | 每个 skill 独立配置，真实值 gitignore，模板提交 |
 
 ## 架构约定
@@ -37,13 +37,12 @@ skills/lark-doc-personal/       # 飞书个人版：user 一步到位创建到�
 **场景 Skill**（面向具体业务场景，可调用通用能力 Skill）：
 
 ```
-skills/doc-summary/             # 通用文档总结框架
+skills/doc-summary/             # 文档总结框架
 ├── SKILL.md
-├── config.yaml                 # 主配置（指定当前场景）
+├── config.yaml                 # 主配置（指定当前场景，gitignored）
 ├── config.example.yaml
 └── scenarios/                  # 场景预设
-    ├── tech-design.yaml        # 技术设计文档扫描
-    └── example.yaml            # 场景模板
+    └── example.yaml            # 模板；用户自己复制并改名（如 tech-design.yaml）
 
 skills/weekly-report/           # 周报生成
 ├── SKILL.md
