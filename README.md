@@ -1,8 +1,9 @@
 # Lark Skills
 
-> A collection of [Claude Code](https://claude.com/claude-code) skills for automating Lark / Feishu workflows via [`lark-cli`](https://github.com/larksuite/cli).
+> A collection of skills for automating Lark / Feishu workflows via [`lark-cli`](https://github.com/larksuite/cli).
+> Works with both [Claude Code](https://claude.com/claude-code) (`~/.claude/commands/`) and [Codex](https://github.com/openai/codex) (`~/.codex/instructions/`). The installer auto-detects whichever agent you have.
 
-基于 Claude Code + lark-cli 的飞书/Lark 自动化 Skill 集合，包含 4 个 Skill：
+基于 lark-cli 的飞书/Lark 自动化 Skill 集合，**同时支持 Claude Code 和 Codex**，包含 4 个 Skill：
 
 - **lark-doc-personal** — 飞书个人版：一步到位创建文档到个人云空间
 - **lark-doc-deliver** — 飞书企业版：bot 创建 + 权限转移 + 群聊投递
