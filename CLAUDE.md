@@ -1,6 +1,6 @@
-# Office Assistant
+# Lark Skills
 
-基于 Claude Code + lark-cli 的办公自动化 Skill 集合。
+基于 Claude Code + lark-cli 的飞书/Lark 自动化 Skill 集合。
 
 ## 技术选型
 

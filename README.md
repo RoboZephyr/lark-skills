@@ -1,6 +1,8 @@
-# Office Assistant（办公助手）
+# Lark Skills
 
-基于 Claude Code + lark-cli 的办公自动化工具集。包含 4 个 Skill：
+> A collection of [Claude Code](https://claude.com/claude-code) skills for automating Lark / Feishu workflows via [`lark-cli`](https://github.com/larksuite/cli).
+
+基于 Claude Code + lark-cli 的飞书/Lark 自动化 Skill 集合，包含 4 个 Skill：
 
 - **lark-doc-personal** — 飞书个人版：一步到位创建文档到个人云空间
 - **lark-doc-deliver** — 飞书企业版：bot 创建 + 权限转移 + 群聊投递
@@ -11,8 +13,8 @@
 
 ```bash
 # 1. Clone 仓库
-git clone https://github.com/RoboZephyr/office-assistant.git ~/workspace/office-assistant
-cd ~/workspace/office-assistant
+git clone https://github.com/RoboZephyr/lark-skills.git ~/workspace/lark-skills
+cd ~/workspace/lark-skills
 
 # 2. 一键安装（将 skills 注册为全局 Claude Code 命令）
 ./install.sh
@@ -119,57 +121,57 @@ lark-cli auth status
 
 ```bash
 # 复制 plist 到 LaunchAgents
-cp launchd/com.office-assistant.weekly-report.plist ~/Library/LaunchAgents/
+cp launchd/com.lark-skills.weekly-report.plist ~/Library/LaunchAgents/
 
 # 加载（启用）
-launchctl load ~/Library/LaunchAgents/com.office-assistant.weekly-report.plist
+launchctl load ~/Library/LaunchAgents/com.lark-skills.weekly-report.plist
 ```
 
 ### 查看状态
 
 ```bash
 # 列出任务（-: 未运行, 0: 上次成功, 非0: 上次失败）
-launchctl list | grep office-assistant
+launchctl list | grep lark-skills
 ```
 
 输出格式：`PID  ExitCode  Label`
-- `-  0  com.office-assistant.weekly-report` → 未在运行，上次成功
-- `12345  -  com.office-assistant.weekly-report` → 正在运行，PID=12345
+- `-  0  com.lark-skills.weekly-report` → 未在运行，上次成功
+- `12345  -  com.lark-skills.weekly-report` → 正在运行，PID=12345
 
 ### 手动触发
 
 ```bash
 # 立刻执行一次（不影响定时计划）
-launchctl start com.office-assistant.weekly-report
+launchctl start com.lark-skills.weekly-report
 ```
 
 ### 查看日志
 
 ```bash
 # 标准输出
-cat /tmp/office-assistant-weekly-report.stdout.log
+cat /tmp/lark-skills-weekly-report.stdout.log
 
 # 错误输出
-cat /tmp/office-assistant-weekly-report.stderr.log
+cat /tmp/lark-skills-weekly-report.stderr.log
 
 # 实时跟踪
-tail -f /tmp/office-assistant-weekly-report.stdout.log
+tail -f /tmp/lark-skills-weekly-report.stdout.log
 ```
 
 ### 停用 / 卸载
 
 ```bash
 # 停用（保留文件，下次登录不再自动加载）
-launchctl unload ~/Library/LaunchAgents/com.office-assistant.weekly-report.plist
+launchctl unload ~/Library/LaunchAgents/com.lark-skills.weekly-report.plist
 
 # 彻底删除
-launchctl unload ~/Library/LaunchAgents/com.office-assistant.weekly-report.plist
-rm ~/Library/LaunchAgents/com.office-assistant.weekly-report.plist
+launchctl unload ~/Library/LaunchAgents/com.lark-skills.weekly-report.plist
+rm ~/Library/LaunchAgents/com.lark-skills.weekly-report.plist
 ```
 
 ### 修改执行时间
 
-编辑 `launchd/com.office-assistant.weekly-report.plist` 中的 `StartCalendarInterval`：
+编辑 `launchd/com.lark-skills.weekly-report.plist` 中的 `StartCalendarInterval`：
 
 ```xml
 <key>StartCalendarInterval</key>
@@ -185,9 +187,9 @@ rm ~/Library/LaunchAgents/com.office-assistant.weekly-report.plist
 
 改完后重新加载：
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.office-assistant.weekly-report.plist
-cp launchd/com.office-assistant.weekly-report.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.office-assistant.weekly-report.plist
+launchctl unload ~/Library/LaunchAgents/com.lark-skills.weekly-report.plist
+cp launchd/com.lark-skills.weekly-report.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.lark-skills.weekly-report.plist
 ```
 
 ### 休眠行为
@@ -200,7 +202,7 @@ launchctl load ~/Library/LaunchAgents/com.office-assistant.weekly-report.plist
 ## 目录结构
 
 ```
-office-assistant/
+lark-skills/
 ├── install.sh                         # 一键安装脚本
 ├── uninstall.sh                       # 卸载脚本
 ├── .claude/commands/                  # 项目级入口（开发用）
@@ -222,7 +224,7 @@ office-assistant/
 │       └── scripts/
 │           └── summarize.py
 ├── launchd/
-│   └── com.office-assistant.weekly-report.plist
+│   └── com.lark-skills.weekly-report.plist
 ├── CLAUDE.md                          # Claude Code 项目指令
 ├── AGENTS.md                          # Codex 项目指令
 ├── .gitignore

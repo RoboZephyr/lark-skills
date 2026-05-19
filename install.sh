@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================
-# Office Assistant — Installer
+# Lark Skills — Installer
 # 支持 Claude Code (~/.claude/commands/) 和 Codex (~/.codex/instructions/)
 # ============================================================
 
@@ -25,7 +25,7 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; }
 ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report)
 
 usage() {
-    echo -e "${BOLD}Office Assistant Installer${NC}"
+    echo -e "${BOLD}Lark Skills Installer${NC}"
     echo ""
     echo "Usage: $0 [options] [skill ...]"
     echo ""
@@ -198,7 +198,7 @@ main() {
     done
 
     echo ""
-    echo -e "${BOLD}Office Assistant Installer${NC}"
+    echo -e "${BOLD}Lark Skills Installer${NC}"
     echo -e "Repo: ${CYAN}$REPO_DIR${NC}"
     echo ""
 

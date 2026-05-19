@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template — replace the following before installing:
+    YOUR_USERNAME      = your macOS short username (output of `whoami`)
+    PATH_TO_CLAUDE     = absolute path to `claude` binary (`which claude`)
+    PATH_TO_REPO       = where you cloned lark-skills (e.g. /Users/YOUR_USERNAME/workspace/lark-skills)
+    PATH_TO_NODE_BIN   = directory containing `claude` and `node` (e.g. /Users/YOUR_USERNAME/.local/share/mise/installs/node/22.12.0/bin)
+-->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.office-assistant.weekly-report</string>
+    <string>com.lark-skills.weekly-report</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/zephyr/.local/share/mise/installs/node/22.12.0/bin/claude</string>
+        <string>PATH_TO_CLAUDE</string>
         <string>-p</string>
         <string>/weekly-report 本周</string>
         <string>--allowedTools</string>
@@ -15,7 +22,7 @@
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/zephyr/workspace/office-assistant</string>
+    <string>PATH_TO_REPO</string>
 
     <key>StartCalendarInterval</key>
     <dict>
@@ -28,16 +35,16 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/tmp/office-assistant-weekly-report.stdout.log</string>
+    <string>/tmp/lark-skills-weekly-report.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/office-assistant-weekly-report.stderr.log</string>
+    <string>/tmp/lark-skills-weekly-report.stderr.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/Users/zephyr/.local/share/mise/installs/node/22.12.0/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>PATH_TO_NODE_BIN:/usr/local/bin:/usr/bin:/bin</string>
         <key>HOME</key>
-        <string>/Users/zephyr</string>
+        <string>/Users/YOUR_USERNAME</string>
     </dict>
 </dict>
 </plist>

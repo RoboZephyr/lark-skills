@@ -1,6 +1,6 @@
-# Office Assistant
+# Lark Skills
 
-基于 lark-cli 的办公自动化任务集合，兼容 Codex / Claude Code 等 AI 编码代理。
+基于 lark-cli 的飞书/Lark 自动化任务集合，兼容 Codex / Claude Code 等 AI 编码代理。
 
 ## 任务结构
 

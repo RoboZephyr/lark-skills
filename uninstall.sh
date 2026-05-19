@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # ============================================================
-# Office Assistant — Uninstaller
+# Lark Skills — Uninstaller
 # 移除 Claude Code 和 Codex 的 skill 入口
 # ============================================================
 
-ALL_SKILLS=(lark-doc-deliver doc-summary)
+ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report)
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -17,7 +17,7 @@ info()  { echo -e "[INFO]  $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 
 echo ""
-echo -e "${BOLD}Office Assistant Uninstaller${NC}"
+echo -e "${BOLD}Lark Skills Uninstaller${NC}"
 echo ""
 
 removed=0
