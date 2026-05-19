@@ -1,0 +1,27 @@
+# ============================================================
+# Lark Doc Personal — 配置模板
+# ============================================================
+# 复制为 config.yaml 后填入真实值
+# config.yaml 已被 .gitignore，不会提交到仓库
+#
+# 个人版账号下，app_id / app_secret / OAuth token 都由 lark-cli
+# 在 ~/.lark-cli/ 全局持久化，本 config 主要记录方便回忆的元信息。
+
+lark:
+  # 飞书开放平台个人版应用
+  app_id: "cli_xxxxxxxxxxxxxxxx"
+
+  # 已 OAuth 授权的个人账号
+  user_open_id: "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  user_name: "你的姓名"
+
+  # OAuth 授权时申请的 scope（用于人工回忆，实际生效以飞书后台为准）
+  scopes:
+    - docs:document:create
+    - docx:document:create
+    - drive:drive
+    - drive:file:upload
+
+# 可选：默认目标文件夹（不填则放云空间根目录）
+defaults:
+  folder_token: ""    # 例: "nodcnHv5fk6WFgJHnAMiq78ewuS"（根目录）

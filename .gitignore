@@ -1,0 +1,17 @@
+*.log
+__pycache__/
+.DS_Store
+
+# 真实配置含敏感信息，只提交 example
+**/config.yaml
+!**/config.example.yaml
+
+# 场景配置含真实团队数据，只提交 example
+**/scenarios/*.yaml
+!**/scenarios/example.yaml
+
+# 运行时生成的临时文件
+weekly_*.md
+doc_summary_*.md
+lark_deliver_*.md
+tech_design_*.md

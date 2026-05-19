@@ -1,0 +1,82 @@
+# ============================================================
+# Commit Weekly Report — 配置模板
+# ============================================================
+# 复制为 config.yaml 后填入真实值
+# config.yaml 已被 .gitignore，不会提交到仓库
+
+# ------ GitHub（主要数据源） ------
+github:
+  repos:
+    - "org/repo1"
+    - "org/repo2"
+  # 优先读取 GITHUB_TOKEN 环境变量，或 `gh auth token`
+  token: ""
+
+# ------ GitLab（可选，自建 GitLab 场景） ------
+gitlab:
+  # 留空则跳过 GitLab 采集
+  base_url: ""           # 例: "https://gitlab.example.com"
+  # 优先读取 GITLAB_TOKEN 环境变量；为空时回退到下面的值
+  token: ""
+
+# ------ 团队成员 ------
+team:
+  members:
+    - username: user1
+      display_name: 用户一
+    - username: user2
+      display_name: 用户二
+      extra_emails:
+        - "alias@local-machine.local"
+
+  # GitLab → GitHub 用户名映射（用于跨平台关联）
+  gitlab_to_github:
+    user1: "gh-user1"
+    user2: "gh-user2"
+
+# ------ Lark / 飞书文档权限 ------
+lark:
+  permissions:
+    # 第一个 ID 接收文档所有权，其余获得 full_access
+    doc_owner_open_ids:
+      - "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+    # Bot 的 open_id
+    bot_open_id: "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+    member_type: "openid"
+    stay_put: false
+    remove_old_owner: false
+    old_owner_perm: "full_access"
+
+  doc:
+    folder_token: ""
+
+# ------ 消息投递 ------
+delivery:
+  enabled: true
+  targets:
+    - type: user
+      id: "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      name: "你的名字"
+    # - type: chat
+    #   id: "oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    #   name: "群聊名称"
+
+# ------ OKR 关联 ------
+okr:
+  enabled: false
+  doc_url: "https://your-feishu-domain/wiki/xxxxx"
+  period: "2026 Q1 OKR"
+
+# ------ 报告设置 ------
+report:
+  language: zh
+  create_raw_data_doc: true
+  create_analysis_doc: true
+
+# ------ 定时任务 ------
+schedule:
+  enabled: true
+  cron: "0 11 * * 5"
+  default_range: "this_week"

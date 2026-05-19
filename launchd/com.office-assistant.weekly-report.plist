@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.office-assistant.weekly-report</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/zephyr/.local/share/mise/installs/node/22.12.0/bin/claude</string>
+        <string>-p</string>
+        <string>/weekly-report 本周</string>
+        <string>--allowedTools</string>
+        <string>Bash,Read,Write,Edit,Glob,Grep</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/zephyr/workspace/office-assistant</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>5</integer>
+        <key>Hour</key>
+        <integer>11</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/office-assistant-weekly-report.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/office-assistant-weekly-report.stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/zephyr/.local/share/mise/installs/node/22.12.0/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/zephyr</string>
+    </dict>
+</dict>
+</plist>

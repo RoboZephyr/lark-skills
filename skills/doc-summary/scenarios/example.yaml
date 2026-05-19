@@ -1,0 +1,49 @@
+# ============================================================
+# 场景模板 — 复制并修改以创建新场景
+# ============================================================
+
+scenario:
+  name: 文档汇总标题
+  description: 场景描述
+
+# ------ 团队成员 ------
+team:
+  members:
+    - display_name: 用户一
+      open_id: "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    - display_name: 用户二
+      open_id: "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# ------ 搜索设置 ------
+search:
+  keywords:
+    - "关键词1"
+    - "关键词2"
+
+  time_range_days: 90
+  page_size: 20
+
+# ------ 筛选规则 ------
+filter:
+  exclude_patterns:
+    - "排除模式1"
+    - "排除模式2"
+
+  include_semantic: |
+    描述什么样的文档应该保留
+
+  exclude_semantic: |
+    描述什么样的文档应该排除
+
+# ------ 报告设置 ------
+report:
+  title_template: "文档汇总 ({date_range})"
+  language: zh
+
+# ------ 投递配置覆盖（可选）------
+# delivery:
+#   enabled: true
+#   targets:
+#     - type: user
+#       id: "ou_xxxxxxxx"
+#       name: "某人"

@@ -1,0 +1,10 @@
+# ============================================================
+# Doc Summary — 配置模板
+# ============================================================
+# 复制为 config.yaml 后填入真实值
+# config.yaml 已被 .gitignore，不会提交到仓库
+
+# 当前使用的场景（对应 scenarios/ 目录下的文件名，不含 .yaml）
+# 创建新场景：复制 scenarios/example.yaml 并修改，场景文件同样被 gitignore
+# 前提：需要执行 lark-cli auth login --domain docs 完成用户授权
+scenario: tech-design
