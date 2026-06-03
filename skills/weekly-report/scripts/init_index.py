@@ -27,17 +27,16 @@ except ImportError:
 
 
 DEFAULT_TITLE = "团队工程周报"
+# 注意:Lark v2 XML 不支持 <divider/>,被静默丢弃。
+# 改用顶部 callout 作为 anchor,每次 block_insert_after callout
+# = 新周条目永远紧贴简介下方。
 TEMPLATE_XML = """<title>{title}</title>
 
 <callout emoji="📌" background="blue">
 <p><b>团队工程周报汇总入口</b></p>
-<p>每周自动追加一条,新一周永远在最上面。</p>
-<p>触发:每周五由 launchd 自动跑 /weekly-report 本周。</p>
+<p>每周自动追加一条,新一周永远在最上面;历史按时间倒序。</p>
+<p>触发:每周五 launchd 自动跑 /weekly-report 本周。</p>
 </callout>
-
-<divider/>
-
-<p><i>(尚无周报记录)</i></p>
 """
 
 
@@ -71,11 +70,21 @@ def create_doc(xml_content, as_identity="bot"):
     if not data or not data.get("ok"):
         raise SystemExit(f"create doc returned not ok: {data}")
     d = data.get("data", {})
-    return d.get("doc_id") or d.get("document_id"), d.get("doc_url") or d.get("url")
+    # v2 response: data.document.{document_id, url}
+    # v1 / fallback: data.{doc_id, doc_url}
+    doc = d.get("document") or {}
+    token = doc.get("document_id") or d.get("doc_id") or d.get("document_id")
+    url = doc.get("url") or d.get("doc_url") or d.get("url")
+    if not token:
+        raise SystemExit(f"could not extract document_id from response: {data}")
+    return token, url
 
 
 def fetch_with_ids(doc_token, as_identity="bot"):
-    """Fetch the doc XML with block IDs (detail=with-ids)."""
+    """Fetch the doc XML with block IDs (detail=with-ids).
+
+    Lark v2 returns content under data.document.content.
+    """
     cmd = [
         "lark-cli", "docs", "+fetch",
         "--api-version", "v2",
@@ -88,23 +97,28 @@ def fetch_with_ids(doc_token, as_identity="bot"):
     if not data or not data.get("ok"):
         raise SystemExit(f"fetch doc returned not ok: {data}")
     body = data.get("data", {})
-    # Different versions of lark-cli expose the body under varying keys
-    return body.get("content") or body.get("body") or body.get("xml") or ""
+    doc = body.get("document") or {}
+    return doc.get("content") or body.get("content") or body.get("body") or ""
 
 
-def find_divider_block_id(xml):
-    """Locate the first <divider .../> tag's block id."""
-    m = re.search(r'<divider\b[^>]*\bid="([^"]+)"', xml)
-    if m:
-        return m.group(1)
-    # alternative attribute name
-    m = re.search(r'<divider\b[^>]*\bblock-id="([^"]+)"', xml)
+def find_anchor_block_id(xml):
+    """Locate the top callout block's id — used as insertion anchor.
+
+    Each new week's entry is inserted via block_insert_after on this anchor,
+    so the newest week always sits directly below the intro callout.
+    """
+    m = re.search(r'<callout\b[^>]*\bid="([^"]+)"', xml)
     return m.group(1) if m else None
 
 
 def transfer_owner(doc_token, new_owner_id, member_type="openid", as_identity="bot",
                    stay_put=False, remove_old_owner=False, old_owner_perm="full_access"):
-    """Hand ownership of the doc to the configured user."""
+    """Hand ownership of the doc to the configured user.
+
+    transfer_owner is gated as high-risk-write — must pass --yes or lark-cli
+    exits 10 with confirmation_required and the script silently no-ops.
+    The user pre-authorizes by configuring doc_owner_open_ids in config.yaml.
+    """
     params = json.dumps({
         "token": doc_token,
         "type": "docx",
@@ -119,13 +133,18 @@ def transfer_owner(doc_token, new_owner_id, member_type="openid", as_identity="b
         "--params", params,
         "--data", payload,
         "--as", as_identity,
+        "--yes",
     ]
-    _, data = _run_lark(cmd, check=False)
+    _, data = _run_lark(cmd, check=True)
     return data
 
 
 def grant_full_access(doc_token, bot_open_id, as_identity="bot"):
-    """Re-grant the bot full_access after ownership transfer so it can append weekly."""
+    """Re-grant the bot full_access after ownership transfer so it can append weekly.
+
+    permission.members.create is also gated as high-risk-write; same --yes
+    pattern as transfer_owner. Pre-authorized by configuring bot_open_id.
+    """
     params = json.dumps({
         "token": doc_token,
         "type": "docx",
@@ -141,8 +160,9 @@ def grant_full_access(doc_token, bot_open_id, as_identity="bot"):
         "--params", params,
         "--data", payload,
         "--as", as_identity,
+        "--yes",
     ]
-    _, data = _run_lark(cmd, check=False)
+    _, data = _run_lark(cmd, check=True)
     return data
 
 
@@ -205,18 +225,18 @@ def main():
     print(f"➤ re-granting bot full_access ({bot_id})", file=sys.stderr)
     grant_full_access(doc_token, bot_id, as_identity=args.as_identity)
 
-    print(f"➤ fetching with-ids to find divider block_id", file=sys.stderr)
+    print(f"➤ fetching with-ids to find anchor (top callout) block_id", file=sys.stderr)
     xml_with_ids = fetch_with_ids(doc_token, as_identity=args.as_identity)
-    divider_id = find_divider_block_id(xml_with_ids)
-    if divider_id:
-        print(f"  ✓ divider block_id: {divider_id}", file=sys.stderr)
+    anchor_id = find_anchor_block_id(xml_with_ids)
+    if anchor_id:
+        print(f"  ✓ anchor (callout) block_id: {anchor_id}", file=sys.stderr)
     else:
-        print(f"  ⚠ could not find divider block_id; append_index.py will refetch on use",
+        print(f"  ⚠ could not find anchor block_id; append_index.py will refetch on use",
               file=sys.stderr)
 
     idx["token"] = doc_token
     idx["url"] = doc_url
-    idx["anchor_block_id"] = divider_id or ""
+    idx["anchor_block_id"] = anchor_id or ""
     idx["title"] = args.title
 
     with config_path.open("w", encoding="utf-8") as f:
@@ -225,7 +245,7 @@ def main():
     print(f"\n✅ index doc initialized; config updated: {config_path}", file=sys.stderr)
     print(f"   token: {doc_token}", file=sys.stderr)
     print(f"   url:   {doc_url}", file=sys.stderr)
-    print(f"   anchor_block_id: {divider_id or '(empty — will refetch)'}",
+    print(f"   anchor_block_id: {anchor_id or '(empty — will refetch)'}",
           file=sys.stderr)
 
 

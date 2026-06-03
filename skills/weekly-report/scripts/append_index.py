@@ -45,8 +45,13 @@ def _run_lark(cmd, stdin_data=None, check=True):
     return r.stdout, parsed
 
 
-def find_divider_block_id(doc_token, as_identity="bot"):
-    """Refetch the doc and locate the first divider's block id."""
+def find_anchor_block_id(doc_token, as_identity="bot"):
+    """Refetch the doc and locate the top callout block (anchor for insertion).
+
+    Lark v2 doesn't preserve <divider/> tags, so we anchor on the intro callout
+    (created by init_index.py). New entries are inserted via block_insert_after
+    on this anchor — the newest week always sits directly below the callout.
+    """
     cmd = [
         "lark-cli", "docs", "+fetch",
         "--api-version", "v2",
@@ -59,11 +64,9 @@ def find_divider_block_id(doc_token, as_identity="bot"):
     if not data or not data.get("ok"):
         raise SystemExit(f"fetch doc returned not ok: {data}")
     body = data.get("data", {})
-    xml = body.get("content") or body.get("body") or body.get("xml") or ""
-    m = re.search(r'<divider\b[^>]*\bid="([^"]+)"', xml)
-    if m:
-        return m.group(1)
-    m = re.search(r'<divider\b[^>]*\bblock-id="([^"]+)"', xml)
+    doc = body.get("document") or {}
+    xml = doc.get("content") or body.get("content") or body.get("body") or ""
+    m = re.search(r'<callout\b[^>]*\bid="([^"]+)"', xml)
     return m.group(1) if m else None
 
 
@@ -129,11 +132,11 @@ def main():
         return
 
     if not anchor:
-        print("anchor_block_id is empty; refetching doc to find divider...",
+        print("anchor_block_id is empty; refetching doc to find top callout...",
               file=sys.stderr)
-        anchor = find_divider_block_id(token, as_identity=args.as_identity)
+        anchor = find_anchor_block_id(token, as_identity=args.as_identity)
         if not anchor:
-            raise SystemExit("could not locate divider block_id in doc")
+            raise SystemExit("could not locate anchor (callout) block_id in doc")
         idx["anchor_block_id"] = anchor
         with config_path.open("w", encoding="utf-8") as f:
             yaml.dump(cfg, f)
