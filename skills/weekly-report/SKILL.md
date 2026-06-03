@@ -15,8 +15,29 @@ description: 从 GitHub（可选 GitLab）收集团队 commit 数据，生成周
 |---|---|
 | lark-cli | `lark-cli auth status` |
 | python3 | `python3 --version` |
+| ruamel.yaml | `python3 -c 'import ruamel.yaml'`（init/append 索引用） |
 | GitHub token | `gh auth token` 或环境变量 `GITHUB_TOKEN` |
 | GitLab token（可选，自建 GitLab） | 环境变量 `GITLAB_TOKEN` 或 config.yaml |
+
+## One-time Setup: Index Doc
+
+第一次跑这个 skill 之前必须建立**汇总入口文档**——一篇长期存在的 Lark doc，每周报告链接都会追加到它顶部，形成时间倒序索引。
+
+```bash
+python3 skills/weekly-report/scripts/init_index.py \
+  --config skills/weekly-report/config.yaml \
+  --title "团队工程周报"        # 可改
+```
+
+脚本会自动:
+
+1. 用 bot 身份建一篇含 `📌 简介 callout` + `divider` 的空 doc
+2. 把 owner 转给 config 里 `doc_owner_open_ids[0]`
+3. 给 bot 重授 `full_access`(后续每周追加用)
+4. 抓取 divider 的 `block_id`(插入锚点)
+5. 把 `token` / `url` / `anchor_block_id` 写回 `config.yaml`
+
+**幂等**:如果 `lark.index_doc.token` 已有值，会拒绝重跑；要重置传 `--force`。
 
 ## Execution Flow
 
@@ -302,28 +323,51 @@ lark-cli im +messages-send --chat-id "<id>" --markdown "$(cat weekly_message.md)
 > **注意**：`im +messages-send` 的 `--markdown` 不支持 `@file` 语法，必须用 `$(cat file)` 传递内容。
 > 投递失败时记录错误，不中断流程。
 
+### Step 7.5: 追加到汇总入口文档
+
+读取 `lark.index_doc.token`：
+
+- 为空 → 跳过本步（提示用户跑 `init_index.py`）
+- 非空 → 用 `append_index.py` 在 doc 顶部 divider 下方插入本周条目
+
+```bash
+python3 skills/weekly-report/scripts/append_index.py \
+  --config skills/weekly-report/config.yaml \
+  --week-label "<W23 2026 或 2026 第 23 周>" \
+  --date-range "<YYYY-MM-DD ~ YYYY-MM-DD>" \
+  --raw-url "<raw_doc_url>" \
+  --analysis-url "<analysis_doc_url>" \
+  --stats "<X 人 · Y commits · +A/-B>"
+```
+
+`--stats` 来自 Step 4 团队总览那一行的数据（活跃人数、总提交、代码变更）；保持一行，无需详情。
+
+`anchor_block_id` 为空或脚本检测到 stale 时会自动重新 fetch + 回写 config。
+
 ### Step 8: 输出结果
 
 ```
 📊 原始数据文档: <raw_doc_url>
 📝 汇总分析文档: <analysis_doc_url>
+📌 索引文档: <index_doc_url>（如已配置）
 📨 已投递: <target.name>, ...
 ```
 
-如有权限操作或投递失败，一并报告。
+如有权限操作、投递、或索引追加失败，一并报告。
 
 ---
 
 ## Key Rules
 
 1. **必须使用 subagent 并行采集**，禁止在主 Agent 中一次性处理所有成员的原始数据
-2. **禁止**手写 Python 脚本 — 使用已有的 `summarize.py`
+2. **禁止**手写 Python 脚本 — 使用已有的 `summarize.py` / `init_index.py` / `append_index.py`
 3. **禁止**跳过任何团队成员
 4. **严禁编造**：汇总报告和消息中的每一条数据、每一个项目名、每一个 MR 链接都必须在原始数据文件中有明确来源。原始数据中没有的内容绝对不能出现在报告里
-5. **每个文档创建后必须执行权限转移**
+5. **每个文档创建后必须执行权限转移**（包括 init_index.py 已内置）
 6. 所有 `lark-cli` 命令使用 `--as bot` 身份执行
 7. 大文件内容使用 `@file` 传递给 lark-cli，不要通过命令行参数传递
 8. Subagent 返回的摘要应在 300-500 字，包含关键数据和 MR 链接
+9. **索引追加是附加步骤**，失败不阻断主流程（raw + analysis doc + 投递三件正常完成即视为成功）
 
 ## Troubleshooting
 
@@ -335,3 +379,5 @@ lark-cli im +messages-send --chat-id "<id>" --markdown "$(cat weekly_message.md)
 | `@file` 报错 | 确认文件路径正确且文件存在 |
 | 文档创建成功但无法打开 | 检查 `doc_owner_open_ids` 是否正确 |
 | subagent 返回空数据 | 该成员本周无提交，在报告中标注"本周无新提交" |
+| `index_doc.token is empty` | 先跑 `python3 scripts/init_index.py` 建索引文档 |
+| `could not locate divider block_id` | 索引文档被手动删了 divider；恢复一条 `<divider/>` 在顶部 callout 下方，或 `init_index.py --force` 重建 |

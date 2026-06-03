@@ -36,6 +36,14 @@ team:
 
 # ------ Lark / 飞书文档权限 ------
 lark:
+  # 汇总入口文档(运行 `python3 scripts/init_index.py` 后自动填入)
+  # 之后每周 publish 会在这篇 doc 的 divider 下方追加一行
+  index_doc:
+    token: ""             # 文档 token,init_index.py 写入
+    url: ""               # 文档 URL,init_index.py 写入
+    anchor_block_id: ""   # 顶部 divider 的 block_id,作为插入锚点
+    title: "团队工程周报"
+
   permissions:
     # 第一个 ID 接收文档所有权，其余获得 full_access
     doc_owner_open_ids:
