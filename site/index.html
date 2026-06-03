@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lark Skills — 把多步 lark-cli 调用打包成 Agent 的 /command</title>
+<meta name="description" content="Lark Skills: pack multi-step lark-cli workflows into Claude Code / Codex Skills. Four ready-to-install /commands for Feishu docs, weekly reports, and document scanning. MIT, local-first, no SaaS.">
+<meta property="og:title" content="Lark Skills — Feishu workflows your AI agent can just run">
+<meta property="og:description" content="Four installable Skills that wrap lark-cli into /weekly-report, /lark-doc-personal, /lark-doc-deliver, /doc-summary.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://lark-skills.robozephyr.com">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        #f4eee2;
+    --paper-warm:   #ece5d3;
+    --paper-line:   #d9d1ba;
+    --ink:          #141414;
+    --ink-2:        #3a3a3a;
+    --ink-3:        #6b6b6b;
+    --ink-4:        #9a937e;
+    --jade:         #0b6e4f;
+    --jade-soft:    #d6e6dd;
+    --terra:        #c4452e;
+    --cobalt:       #2f5fd1;
+    --shadow:       4px 4px 0 var(--ink);
+    --scroll-thumb:       rgba(20, 20, 20, 0.22);
+    --scroll-thumb-hover: rgba(20, 20, 20, 0.42);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:        #14160f;
+      --paper-warm:   #1c1f17;
+      --paper-line:   #2d3127;
+      --ink:          #eee8d6;
+      --ink-2:        #c8c2af;
+      --ink-3:        #8a8470;
+      --ink-4:        #5b5644;
+      --jade:         #45c08a;
+      --jade-soft:    #1d3128;
+      --terra:        #e76a4f;
+      --cobalt:       #6b8eff;
+      --shadow:       4px 4px 0 var(--jade);
+      --scroll-thumb:       rgba(238, 232, 214, 0.18);
+      --scroll-thumb-hover: rgba(238, 232, 214, 0.36);
+    }
+  }
+
+  /* — slim, themed scrollbars on horizontally-scrolling code/tree/diagram blocks — */
+  .install,
+  .diagram,
+  .tree {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-thumb) transparent;
+  }
+  .install::-webkit-scrollbar,
+  .diagram::-webkit-scrollbar,
+  .tree::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  .install::-webkit-scrollbar-track,
+  .diagram::-webkit-scrollbar-track,
+  .tree::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .install::-webkit-scrollbar-thumb,
+  .diagram::-webkit-scrollbar-thumb,
+  .tree::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    border-radius: 3px;
+  }
+  .install::-webkit-scrollbar-thumb:hover,
+  .diagram::-webkit-scrollbar-thumb:hover,
+  .tree::-webkit-scrollbar-thumb:hover {
+    background: var(--scroll-thumb-hover);
+  }
+  /* install block has inverted bg (--ink), so its scrollbar needs inverted contrast */
+  .install {
+    --scroll-thumb:       rgba(244, 238, 226, 0.22);
+    --scroll-thumb-hover: rgba(244, 238, 226, 0.42);
+  }
+  @media (prefers-color-scheme: dark) {
+    .install {
+      --scroll-thumb:       rgba(20, 22, 15, 0.28);
+      --scroll-thumb-hover: rgba(20, 22, 15, 0.48);
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background:
+      linear-gradient(var(--paper-line) 0 1px, transparent 1px 100%) 0 0 / 100% 32px,
+      var(--paper);
+    background-attachment: fixed;
+    padding: 0;
+    font-size: 15.5px;
+    line-height: 1.65;
+  }
+  .wrap {
+    max-width: 1080px;
+    margin-inline: auto;
+    padding: 3.5rem 1.5rem 5rem;
+  }
+  .mono, code, pre, kbd {
+    font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  :not(pre) > code {
+    font-size: 0.88em;
+    background: var(--paper-warm);
+    border: 1px solid var(--paper-line);
+    padding: 0.08em 0.4em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+  a {
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 1px solid var(--ink-4);
+    transition: color 160ms, border-color 160ms;
+  }
+  a:hover { color: var(--terra); border-bottom-color: var(--terra); }
+  strong { font-weight: 600; color: var(--ink); }
+
+  /* — top crumb — */
+  .crumb {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin: 0 0 2.5rem;
+  }
+  .crumb a {
+    color: var(--ink-3);
+    border-bottom-color: var(--paper-line);
+  }
+  .crumb .slash { color: var(--ink-4); margin: 0 0.6em; }
+
+  /* — hero — */
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 3.5rem 3rem;
+    align-items: start;
+    margin-bottom: 6rem;
+  }
+  @media (max-width: 880px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 3rem; }
+  }
+
+  h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    font-size: clamp(2.6rem, 6.5vw, 4.2rem);
+    line-height: 0.92;
+    letter-spacing: -0.04em;
+    margin: 0 0 1.4rem;
+    text-transform: uppercase;
+  }
+  h1 .dot {
+    color: var(--jade);
+    margin: 0 0.05em;
+  }
+  h1 .skills {
+    display: inline-block;
+    position: relative;
+  }
+  h1 .skills::after {
+    content: '';
+    position: absolute;
+    left: -0.1em; right: -0.1em;
+    bottom: 0.08em;
+    height: 0.18em;
+    background: var(--jade);
+    z-index: -1;
+    opacity: 0.35;
+  }
+
+  .lede {
+    font-size: 1.15rem;
+    line-height: 1.55;
+    color: var(--ink-2);
+    margin: 0 0 1.75rem;
+    max-width: 30em;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  /* — install block — */
+  .install {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    padding: 0.95rem 1.1rem;
+    border: 1px solid var(--ink);
+    box-shadow: var(--shadow);
+    margin: 0 0 1.5rem;
+    overflow-x: auto;
+    position: relative;
+    transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 180ms;
+  }
+  .install:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--jade);
+  }
+  .install .line { display: block; }
+  .install .line + .line { margin-top: 0.25em; }
+  .install .prompt { color: var(--jade); user-select: none; margin-right: 0.6em; }
+  .install .cmd { color: var(--paper); white-space: pre; }
+  .install .comment { color: var(--ink-4); display: block; margin-top: 0.55em; padding-left: 1.4em; }
+
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.85rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+  .badge {
+    border: 1px solid var(--paper-line);
+    padding: 0.22rem 0.55rem;
+    border-radius: 2px;
+    background: var(--paper-warm);
+  }
+  .badge.jade { color: var(--jade); border-color: var(--jade); background: transparent; }
+
+  /* — wire diagram — */
+  .diagram-frame {
+    border: 1px solid var(--ink);
+    background: var(--paper-warm);
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+  .diagram-tab {
+    position: absolute;
+    top: -0.85rem;
+    left: 1rem;
+    background: var(--paper);
+    padding: 0.05rem 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    border: 1px solid var(--paper-line);
+  }
+  .diagram {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--ink-2);
+    margin: 0;
+    padding: 1.6rem 1.2rem 1.3rem;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .diagram .h { color: var(--ink); font-weight: 700; }
+  .diagram .j { color: var(--jade); font-weight: 600; }
+  .diagram .c { color: var(--cobalt); }
+  .diagram .t { color: var(--terra); }
+  .diagram .m { color: var(--ink-4); }
+
+  /* — section labels — */
+  .section {
+    margin: 0 0 5rem;
+    position: relative;
+  }
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7em;
+  }
+  .section-label::before {
+    content: '';
+    width: 1.3rem;
+    height: 2px;
+    background: var(--jade);
+  }
+  .section-title {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(1.7rem, 3vw, 2.1rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    margin: 0 0 2.4rem;
+    max-width: 22em;
+  }
+
+  /* — skill rows — */
+  .skill {
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
+    gap: 1.5rem 2.5rem;
+    padding: 1.75rem 0;
+    border-top: 1px solid var(--paper-line);
+    align-items: start;
+    position: relative;
+  }
+  .skill:last-child { border-bottom: 1px solid var(--paper-line); }
+  @media (max-width: 720px) {
+    .skill { grid-template-columns: 1fr; gap: 0.6rem; padding: 1.5rem 0; }
+  }
+  .skill-slash {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--jade);
+    padding-top: 0.05rem;
+    letter-spacing: -0.005em;
+  }
+  .skill-slash .num {
+    display: block;
+    font-size: 10.5px;
+    color: var(--ink-4);
+    letter-spacing: 0.18em;
+    margin-bottom: 0.55rem;
+    font-weight: 500;
+  }
+  .skill-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0 0 0.5rem;
+    color: var(--ink);
+  }
+  .skill-desc {
+    color: var(--ink-2);
+    margin: 0 0 0.8rem;
+    max-width: 36em;
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+  .skill-tags {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.5rem;
+  }
+  .skill-tags span { color: var(--ink-3); }
+  .skill-tags .sep { color: var(--ink-4); opacity: 0.6; }
+
+  /* — anatomy split — */
+  .anatomy-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.9fr);
+    gap: 2rem 3rem;
+    align-items: start;
+  }
+  @media (max-width: 960px) { .anatomy-grid { grid-template-columns: 1fr; } }
+  .tree {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--ink-2);
+    background: var(--paper-warm);
+    border: 1px solid var(--paper-line);
+    padding: 1.25rem 1.4rem;
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .tree .dir { color: var(--ink); font-weight: 700; }
+  .tree .file { color: var(--ink); }
+  .tree .note { color: var(--jade); }
+  .anatomy-text p {
+    margin: 0 0 1.05rem;
+    color: var(--ink-2);
+    line-height: 1.7;
+  }
+  .anatomy-text p:last-child { margin-bottom: 0; }
+
+  /* — why — */
+  .why p {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--ink-2);
+    margin: 0 0 1.1rem;
+    max-width: 38em;
+  }
+  .why p strong { color: var(--ink); }
+  .pull-quote {
+    border-left: 3px solid var(--jade);
+    padding: 0.2rem 0 0.2rem 1.2rem;
+    margin: 1.4rem 0 1.4rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink);
+    max-width: 34em;
+  }
+  .pull-quote em { font-style: normal; color: var(--jade); }
+
+  /* — footer — */
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    letter-spacing: 0.02em;
+  }
+  footer .links { display: flex; gap: 1.25rem; }
+  footer a { color: var(--ink-3); border-bottom-color: var(--paper-line); }
+  footer a:hover { color: var(--terra); border-bottom-color: var(--terra); }
+
+  ::selection { background: var(--jade); color: var(--paper); }
+
+  @media (max-width: 520px) {
+    .wrap { padding: 2.5rem 1.2rem 3.5rem; }
+    body { background-size: 100% 28px; }
+    .hero-grid { margin-bottom: 4rem; }
+    .section { margin-bottom: 3.5rem; }
+    .skill-slash { font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="crumb">
+    <a href="https://robozephyr.com">RoboZephyr</a><span class="slash">/</span>open source<span class="slash">/</span>04 · lark-skills
+  </p>
+
+  <header class="hero-grid">
+
+    <div>
+      <h1>LARK<span class="dot">·</span><span class="skills">SKILLS</span></h1>
+      <p class="lede">把多步 <code>lark-cli</code> 调用打包成 Claude Code 和 Codex 可以直接 <code>/run</code> 的 Skill。<strong>一次 git clone，四个 slash command，任何项目目录都能用。</strong></p>
+
+      <div class="install" role="region" aria-label="install command">
+        <span class="line"><span class="prompt">$</span><span class="cmd">git clone https://github.com/RoboZephyr/lark-skills</span></span>
+        <span class="line"><span class="prompt">$</span><span class="cmd">cd lark-skills &amp;&amp; ./install.sh</span></span>
+        <span class="comment"># 自动检测 Claude Code / Codex 并写入 /commands</span>
+      </div>
+
+      <div class="badges">
+        <span class="badge jade">MIT</span>
+        <span class="badge">Claude Code</span>
+        <span class="badge">Codex</span>
+        <span class="badge">飞书 · Lark</span>
+      </div>
+    </div>
+
+    <div class="diagram-frame">
+      <span class="diagram-tab">signal · flow</span>
+<pre class="diagram">
+<span class="m">┌─────────────────┐      ┌──────────────────┐</span>
+<span class="m">│</span>  <span class="c">飞书 / Lark</span>    <span class="m">│</span>      <span class="m">│</span>  <span class="h">SKILL.md</span>        <span class="m">│</span>
+<span class="m">│</span>   open API      <span class="m">│</span>      <span class="m">│</span>  + <span class="h">config.yaml</span>   <span class="m">│</span>
+<span class="m">└────────┬────────┘</span>      <span class="m">└────────┬─────────┘</span>
+         <span class="m">│</span>                        <span class="m">│</span>
+         <span class="j">▼</span>                        <span class="j">▼</span>
+   <span class="m">┌─────────────────────────────────────┐</span>
+   <span class="m">│</span>           <span class="j">lark-cli</span>                  <span class="m">│</span>    <span class="m">←</span> <span class="m">oauth, http,</span>
+   <span class="m">│</span>     <span class="m">(npm i -g @larksuite/cli)</span>      <span class="m">│</span>    <span class="m">  retries</span>
+   <span class="m">└───────────────────┬─────────────────┘</span>
+                       <span class="m">│</span>
+                       <span class="j">▼</span>
+   <span class="m">┌─────────────────────────────────────┐</span>
+   <span class="m">│</span>    <span class="t">/lark-doc-personal</span>               <span class="m">│</span>
+   <span class="m">│</span>    <span class="t">/lark-doc-deliver</span>                <span class="m">│</span>    <span class="m">←</span> <span class="m">your agent</span>
+   <span class="m">│</span>    <span class="t">/doc-summary</span>                     <span class="m">│</span>    <span class="m">  just runs</span>
+   <span class="m">│</span>    <span class="t">/weekly-report</span>                   <span class="m">│</span>    <span class="m">  these</span>
+   <span class="m">└─────────────────────────────────────┘</span>
+              <span class="m">Claude Code  ·  Codex</span>
+</pre>
+    </div>
+
+  </header>
+
+  <section class="section">
+    <p class="section-label">the four skills</p>
+    <h2 class="section-title">不是一个调用，是一组工作流 — 都装好了。</h2>
+
+    <article class="skill">
+      <div class="skill-slash"><span class="num">SK · 01</span>/lark-doc-personal</div>
+      <div>
+        <h3 class="skill-name">飞书个人版 · 一步落盘</h3>
+        <p class="skill-desc">用 <code>--as user</code> 把 markdown 直接创建到你的个人云空间根目录。OAuth 一次，之后所有 agent 复用。<strong>飞书个人版用户从这里起步。</strong></p>
+        <div class="skill-tags">
+          <span>oauth</span><span class="sep">·</span><span>markdown → docx</span><span class="sep">·</span><span>personal cloud</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="skill">
+      <div class="skill-slash"><span class="num">SK · 02</span>/lark-doc-deliver</div>
+      <div>
+        <h3 class="skill-name">企业版 · 协作分发链路</h3>
+        <p class="skill-desc">Bot 创建 docx → <code>transfer_owner</code> 给指定员工 → 发消息到群聊。所有协作步骤一次跑完，不会丢在 bot 的私人云空间。</p>
+        <div class="skill-tags">
+          <span>bot</span><span class="sep">·</span><span>transfer_owner</span><span class="sep">·</span><span>group message</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="skill">
+      <div class="skill-slash"><span class="num">SK · 03</span>/doc-summary</div>
+      <div>
+        <h3 class="skill-name">扫描 → 汇总 → 投递</h3>
+        <p class="skill-desc">按场景配置搜飞书文档（关键词 + 团队成员可见范围），筛选后生成结构化汇总，调用 <code>lark-doc-deliver</code> 创建文档并发群。技术设计文档扫描只是预设场景之一。</p>
+        <div class="skill-tags">
+          <span>search</span><span class="sep">·</span><span>filter</span><span class="sep">·</span><span>summarize</span><span class="sep">·</span><span>deliver</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="skill">
+      <div class="skill-slash"><span class="num">SK · 04</span>/weekly-report</div>
+      <div>
+        <h3 class="skill-name">周报 · 从 commit 到文档</h3>
+        <p class="skill-desc">从 GitHub（可选 GitLab）拉 commit 数据，subagent 并行生成每人摘要，主 agent 合并为周报，自动创建飞书文档并发群通知 —— 避免长上下文溢出。</p>
+        <div class="skill-tags">
+          <span>git data</span><span class="sep">·</span><span>parallel subagent</span><span class="sep">·</span><span>auto deliver</span>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="section">
+    <p class="section-label">anatomy of a skill</p>
+    <h2 class="section-title">一份说明书，一份配置 —— 没有 wrapper。</h2>
+
+    <div class="anatomy-grid">
+<pre class="tree"><span class="dir">skills/</span>
+└── <span class="dir">weekly-report/</span>
+    ├── <span class="file">SKILL.md</span>          <span class="note">← Agent 读这个，知道何时触发、调谁</span>
+    ├── <span class="file">config.yaml</span>       <span class="note">← 你填的真实值（open_id / chat_id / repos）</span>
+    ├── <span class="file">config.example.yaml</span>
+    └── <span class="dir">helpers/</span>
+        ├── <span class="file">pull-commits.py</span>  <span class="note">← shell-callable，subagent 并行调</span>
+        └── <span class="file">summarize.py</span></pre>
+
+      <div class="anatomy-text">
+        <p>每个 Skill = 一份 <code>SKILL.md</code> + 一份 <code>config.yaml</code>。前者是给 Agent 看的执行说明（什么时候触发、按什么顺序调 <code>lark-cli</code>、出什么）；后者放你自己的飞书 <code>open_id</code>、群 <code>chat_id</code>、关键词清单。</p>
+        <p>Agent 拿到任务 → 读 SKILL.md → 按步骤调 <code>lark-cli</code> → 把 config.yaml 的值塞进去 → 出文档。<strong>没有 SaaS，没有要传到第三方服务器的密钥，没有 wrapper 层。</strong></p>
+        <p><code>./install.sh</code> 把每个 Skill 的入口写到 <code>~/.claude/commands/</code> 或 <code>~/.codex/instructions/</code>，之后 <code>/weekly-report</code> 在任何项目目录都能跑 —— 因为它本来就不依赖项目，它依赖你的飞书账号。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section why">
+    <p class="section-label">why</p>
+    <h2 class="section-title">让 Agent 调原始 <code>lark-cli</code> 容易在第三步走偏。</h2>
+
+    <p>飞书 API 不是单次调用 —— 是一组工作流：<code>auth status</code> → 准备 markdown → 创建 docx → <code>transfer_owner</code> → 发群聊。每步都有它自己的 token / 错误码 / 边界（个人版没有"员工"概念、bot 创建的文档默认落在 app 云空间用户看不见、跨空间 move API 会报 <code>1061002</code>）。</p>
+
+    <div class="pull-quote">
+      最干净的方案是把"我已经踩过的坑"<em>编码成 Agent 能稳定执行的一份说明书</em> —— 不是教 Agent 现学。
+    </div>
+
+    <p>这就是 Skill 的形态：一份 Agent-readable 的步骤 + 一份你的真实配置。装好之后，<code>/weekly-report</code> 在你机器上任何项目目录都能直接跑。</p>
+  </section>
+
+  <footer>
+    <span>// the system is wired and humming</span>
+    <div class="links">
+      <a href="https://github.com/RoboZephyr/lark-skills">github ↗</a>
+      <a href="https://robozephyr.com">robozephyr.com</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

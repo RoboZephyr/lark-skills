@@ -15,3 +15,6 @@ weekly_*.md
 doc_summary_*.md
 lark_deliver_*.md
 tech_design_*.md
+
+# Cloudflare Wrangler 本地缓存
+.wrangler/
