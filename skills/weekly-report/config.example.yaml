@@ -84,7 +84,8 @@ report:
   create_analysis_doc: true
 
 # ------ 定时任务 ------
+# 每周一 09:00 自动跑,覆盖上一个完整 ISO 周(上周一~上周日)
 schedule:
   enabled: true
-  cron: "0 11 * * 5"
-  default_range: "this_week"
+  cron: "0 9 * * 1"
+  default_range: "last_iso_week"

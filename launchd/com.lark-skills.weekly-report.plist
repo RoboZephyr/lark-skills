@@ -16,7 +16,7 @@
     <array>
         <string>PATH_TO_CLAUDE</string>
         <string>-p</string>
-        <string>/weekly-report 本周</string>
+        <string>/weekly-report 上周</string>
         <string>--allowedTools</string>
         <string>Bash,Read,Write,Edit,Glob,Grep</string>
     </array>
@@ -24,12 +24,13 @@
     <key>WorkingDirectory</key>
     <string>PATH_TO_REPO</string>
 
+    <!-- 每周一 09:00 跑;扫描上一个完整 ISO 周(上周一~上周日) -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Weekday</key>
-        <integer>5</integer>
+        <integer>1</integer>
         <key>Hour</key>
-        <integer>11</integer>
+        <integer>9</integer>
         <key>Minute</key>
         <integer>0</integer>
     </dict>

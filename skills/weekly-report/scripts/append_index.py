@@ -97,6 +97,11 @@ def main():
     parser.add_argument("--stats", default="",
                         help="one-line aggregate, e.g. '3 人 · 122 commits · +33k/-10k'")
     parser.add_argument("--as", dest="as_identity", default="bot", choices=["bot", "user"])
+    parser.add_argument("--after-block-id", default="",
+                        help="override anchor: insert block_insert_after this block id "
+                             "instead of config.lark.index_doc.anchor_block_id. Used for "
+                             "backfilling historical weeks under the current tail so the "
+                             "newest week stays at top.")
     parser.add_argument("--dry-run", action="store_true",
                         help="print XML that would be inserted; do not call lark-cli")
     args = parser.parse_args()
@@ -112,7 +117,7 @@ def main():
 
     idx = cfg.get("lark", {}).get("index_doc", {})
     token = idx.get("token", "")
-    anchor = idx.get("anchor_block_id", "")
+    anchor = args.after_block_id or idx.get("anchor_block_id", "")
 
     if not token:
         raise SystemExit("lark.index_doc.token is empty — run init_index.py first")
