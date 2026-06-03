@@ -211,6 +211,8 @@ cat /tmp/weekly_user1.md /tmp/weekly_user2.md /tmp/weekly_user3.md > /tmp/weekly
 > **注意**：`lark-cli docs +create` 的 `@file` 路径必须是**相对于当前工作目录**的相对路径，
 > 不支持绝对路径。需要先将文件 cp 到工作目录，或 cd 到文件所在目录。
 
+> **`--title` 行为差异**:本步骤默认走 v1(`docs +create` 不带 `--api-version`)——v1 的 `--title` 会正确写入文档标题。如果显式加 `--api-version v2`,`--title` **对 markdown 内容会被静默忽略**(文档标题变 "Untitled"),必须让 markdown 第一行是 `# 期望标题` 充当 title。建议保持 v1 default,除非已经在 markdown 顶部放好 H1 标题。
+
 **4a. 创建原始数据文档**（如果 `report.create_raw_data_doc` 为 true）：
 
 ```bash
@@ -382,6 +384,7 @@ python3 skills/weekly-report/scripts/append_index.py \
 | summarize.py 超时 | 缩小日期范围或增加 `--timeout 60` |
 | `@file` 报错 | 确认文件路径正确且文件存在 |
 | 文档创建成功但无法打开 | 检查 `doc_owner_open_ids` 是否正确 |
+| 文档标题显示 "Untitled" | 用了 `--api-version v2` + `--title`（v2 忽略 `--title`）。要么用 v1 默认，要么 markdown 首行加 `# 期望标题`，或事后 `docs +update --command str_replace --pattern "Untitled" --content "期望标题"` |
 | subagent 返回空数据 | 该成员本周无提交，在报告中标注"本周无新提交" |
 | `index_doc.token is empty` | 先跑 `python3 scripts/init_index.py` 建索引文档 |
 | `could not locate anchor (callout) block_id` | 索引文档顶部 callout 被删了；恢复一个 callout 在最顶部，或 `init_index.py --force` 重建 |
