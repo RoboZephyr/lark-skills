@@ -46,6 +46,9 @@ Token 优先级：
 从各成员的 `extra_emails` 字段构造 `--extra-emails` 参数：
 格式 `user1=email1;email2,user2=email3`（多邮箱 `;` 分隔，多用户 `,` 分隔）。
 
+从各成员的 `display_name` 字段构造 `--display-names` 参数：
+格式 `user1=张三,user2=李四`（多用户 `,` 分隔）。不传则报告标题用 GitHub handle。
+
 ### Step 2: 并行采集每位成员的 Commit 数据
 
 **使用 Agent 工具为每位成员 spawn 一个 subagent**，所有 subagent 并行执行。
@@ -66,7 +69,8 @@ python3 skills/weekly-report/scripts/summarize.py \
   --github-repos "<github.repos，逗号分隔>" \
   --github-token "<github_token>" \
   --github-users "<该成员的 gitlab_to_github 映射>" \
-  --extra-emails "<该成员的 extra_emails>"
+  --extra-emails "<该成员的 extra_emails>" \
+  --display-names "<该成员的 display_name 映射>"
 ```
 
 2. 读取 `/tmp/weekly_<username>.md`，撰写该成员的**精炼分析摘要**（300-500 字），包含：
@@ -91,7 +95,8 @@ python3 skills/weekly-report/scripts/summarize.py \
      --users "<username>" --since "<since>" --until "<until>" \
      --output /tmp/weekly_<username>.md \
      [--github-repos "..." --github-token "..." --github-users "..."] \
-     [--extra-emails "..."]
+     [--extra-emails "..."] \
+     [--display-names "<username>=<display_name>"]
 
 2. 读取 /tmp/weekly_<username>.md
 

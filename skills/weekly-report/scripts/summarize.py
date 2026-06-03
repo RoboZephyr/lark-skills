@@ -16,9 +16,12 @@ Optimized for minimal LLM token usage:
 """
 
 import argparse
+import http.client
 import json
+import socket
 import subprocess
 import sys
+import time
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -27,9 +30,51 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
+# Transient network errors that should trigger retry with backoff.
+# IncompleteRead / RemoteDisconnected happen mid-body on flaky GitHub responses.
+RETRYABLE_ERRORS = (
+    http.client.IncompleteRead,
+    http.client.RemoteDisconnected,
+    urllib.error.URLError,
+    socket.timeout,
+    TimeoutError,
+    ConnectionError,
+)
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 1.5  # seconds, exponential
+
+
 # ============================================================
 # GitLab API
 # ============================================================
+
+def _http_get_json(req, label):
+    """Execute an HTTP GET with retry on transient network errors.
+
+    Returns (data, fatal_error_message_or_None). On fatal error, data is None.
+    On retry exhaustion of transient errors, data is None and a message is set.
+    """
+    last_err = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode('utf-8')), None
+        except urllib.error.HTTPError as e:
+            body = e.read().decode('utf-8', errors='replace')[:200]
+            return None, f"HTTP {e.code}: {label} — {body}"
+        except RETRYABLE_ERRORS as e:
+            last_err = e
+            if attempt < MAX_RETRIES:
+                sleep_for = RETRY_BACKOFF_BASE ** attempt
+                print(f"  ↻ retry {attempt}/{MAX_RETRIES - 1} after {sleep_for:.1f}s: {label} — {type(e).__name__}",
+                      file=sys.stderr)
+                time.sleep(sleep_for)
+                continue
+            return None, f"{label} — exhausted retries: {type(e).__name__}: {e}"
+        except Exception as e:
+            return None, f"{label} — {type(e).__name__}: {e}"
+    return None, f"{label} — {type(last_err).__name__ if last_err else 'unknown'}"
+
 
 def gitlab_api(base_url, token, endpoint, params=None):
     """Make a GitLab API GET request with pagination support."""
@@ -47,25 +92,19 @@ def gitlab_api(base_url, token, endpoint, params=None):
         req = urllib.request.Request(url)
         req.add_header('PRIVATE-TOKEN', token)
 
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                if not data:
-                    break
-                if isinstance(data, list):
-                    results.extend(data)
-                    if len(data) < per_page:
-                        break
-                else:
-                    return data
-                page += 1
-        except urllib.error.HTTPError as e:
-            body = e.read().decode('utf-8', errors='replace')[:200]
-            print(f"  ✗ API {e.code}: {endpoint} — {body}", file=sys.stderr)
+        data, err = _http_get_json(req, endpoint)
+        if err:
+            print(f"  ✗ API {err}", file=sys.stderr)
             break
-        except Exception as e:
-            print(f"  ✗ {endpoint} — {e}", file=sys.stderr)
+        if not data:
             break
+        if isinstance(data, list):
+            results.extend(data)
+            if len(data) < per_page:
+                break
+        else:
+            return data
+        page += 1
     return results
 
 
@@ -90,25 +129,19 @@ def github_api(token, endpoint, params=None):
         req.add_header('Authorization', f'token {token}')
         req.add_header('Accept', 'application/vnd.github.v3+json')
 
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                if not data:
-                    break
-                if isinstance(data, list):
-                    results.extend(data)
-                    if len(data) < per_page:
-                        break
-                else:
-                    return data
-                page += 1
-        except urllib.error.HTTPError as e:
-            body = e.read().decode('utf-8', errors='replace')[:200]
-            print(f"  ✗ GitHub API {e.code}: {endpoint} — {body}", file=sys.stderr)
+        data, err = _http_get_json(req, f"GitHub {endpoint}")
+        if err:
+            print(f"  ✗ {err}", file=sys.stderr)
             break
-        except Exception as e:
-            print(f"  ✗ GitHub {endpoint} — {e}", file=sys.stderr)
+        if not data:
             break
+        if isinstance(data, list):
+            results.extend(data)
+            if len(data) < per_page:
+                break
+        else:
+            return data
+        page += 1
     return results
 
 
@@ -724,6 +757,8 @@ def main():
     parser.add_argument('--no-header', action='store_true', help='Skip team overview header, only output per-user sections')
     parser.add_argument('--extra-emails', default='',
                         help='Extra email mappings: user1=email1;email2,user2=email3')
+    parser.add_argument('--display-names', default='',
+                        help='Display name overrides: user1=张三,user2=李四 (shown in report header)')
     args = parser.parse_args()
 
     base_url = args.gitlab_url.rstrip('/') if args.gitlab_url else ''
@@ -740,6 +775,14 @@ def main():
             if '=' in pair:
                 gl, gh = pair.strip().split('=', 1)
                 gh_user_map[gl.strip()] = gh.strip()
+
+    # Parse display name overrides: user1=Name1,user2=Name2
+    display_names_map = {}
+    if args.display_names:
+        for pair in args.display_names.split(','):
+            if '=' in pair:
+                u, name = pair.strip().split('=', 1)
+                display_names_map[u.strip()] = name.strip()
 
     # Parse extra email mappings: user1=email1;email2,user2=email3
     extra_emails_map = defaultdict(set)  # username -> {emails}
@@ -1076,10 +1119,17 @@ def main():
     users_data = []
     for username in user_list:
         user = resolved.get(username)
-        if not user:
-            # Create a synthetic user info for GitHub-only users
+        if user:
+            # GitLab-resolved: still honor explicit display_name override
+            if username in display_names_map:
+                user = {**user, 'name': display_names_map[username]}
+        else:
+            # GitHub-only: keep config username as @handle, prefer display_name for header
             gh_username = gh_user_map.get(username, username)
-            user = {'username': gh_username, 'name': gh_username}
+            user = {
+                'username': username,
+                'name': display_names_map.get(username, gh_username),
+            }
 
         user_emails = user_emails_map.get(username, set())
         commits_by_project = {}
