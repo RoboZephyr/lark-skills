@@ -22,11 +22,14 @@ except ImportError:
     sys.exit(1)
 
 
-ENTRY_XML = """<callout emoji="📅" background="grey">
-<p><b>{week_label}</b> · {date_range}</p>
-<p>{stats}</p>
-<p>📊 <a href="{raw_url}">原始数据</a> · 📝 <a href="{analysis_url}">汇总分析</a></p>
-</callout>"""
+# NB: insertion uses markdown format — <a href> tags inserted via XML
+# format are silently stripped outside of callout blocks in Lark v2.
+ENTRY_MD = """## {week_label} · {date_range}
+
+{stats}
+
+📊 [原始数据]({raw_url}) · 📝 [汇总分析]({analysis_url})
+"""
 
 
 def _run_lark(cmd, stdin_data=None, check=True):
@@ -70,7 +73,13 @@ def find_anchor_block_id(doc_token, as_identity="bot"):
     return m.group(1) if m else None
 
 
-def append_entry(doc_token, anchor_block_id, xml_content, as_identity="bot"):
+def append_entry(doc_token, anchor_block_id, md_content, as_identity="bot"):
+    """Insert a markdown block after the anchor.
+
+    Uses markdown format because Lark v2 strips <a href> tags from XML inserts
+    outside of callout blocks; [text](url) in markdown produces clickable
+    links reliably.
+    """
     cmd = [
         "lark-cli", "docs", "+update",
         "--api-version", "v2",
@@ -78,10 +87,10 @@ def append_entry(doc_token, anchor_block_id, xml_content, as_identity="bot"):
         "--doc", doc_token,
         "--command", "block_insert_after",
         "--block-id", anchor_block_id,
-        "--doc-format", "xml",
+        "--doc-format", "markdown",
         "--content", "-",
     ]
-    _, data = _run_lark(cmd, stdin_data=xml_content)
+    _, data = _run_lark(cmd, stdin_data=md_content)
     return data
 
 
@@ -122,7 +131,7 @@ def main():
     if not token:
         raise SystemExit("lark.index_doc.token is empty — run init_index.py first")
 
-    xml = ENTRY_XML.format(
+    md = ENTRY_MD.format(
         week_label=args.week_label,
         date_range=args.date_range,
         stats=args.stats or "(无聚合统计)",
@@ -131,7 +140,7 @@ def main():
     )
 
     if args.dry_run:
-        print(xml)
+        print(md)
         print(f"\n(dry-run) would block_insert_after token={token} block={anchor or '<unknown>'}",
               file=sys.stderr)
         return
@@ -148,7 +157,7 @@ def main():
         print(f"  ✓ refreshed anchor_block_id = {anchor}", file=sys.stderr)
 
     print(f"➤ appending entry to {token} after block {anchor}", file=sys.stderr)
-    result = append_entry(token, anchor, xml, as_identity=args.as_identity)
+    result = append_entry(token, anchor, md, as_identity=args.as_identity)
     if result and not result.get("ok"):
         print(f"  ⚠ update returned: {result}", file=sys.stderr)
         raise SystemExit(1)

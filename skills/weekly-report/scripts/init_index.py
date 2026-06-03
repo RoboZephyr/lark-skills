@@ -30,12 +30,12 @@ DEFAULT_TITLE = "团队工程周报"
 # 注意:Lark v2 XML 不支持 <divider/>,被静默丢弃。
 # 改用顶部 callout 作为 anchor,每次 block_insert_after callout
 # = 新周条目永远紧贴简介下方。
+# 为了视觉 neat & clean,intro callout 只放一行触发说明,
+# 周条目本身用 h2 + 普通 paragraph,不再嵌 callout。
 TEMPLATE_XML = """<title>{title}</title>
 
-<callout emoji="📌" background="blue">
-<p><b>团队工程周报汇总入口</b></p>
-<p>每周自动追加一条,新一周永远在最上面;历史按时间倒序。</p>
-<p>触发:每周五 launchd 自动跑 /weekly-report 本周。</p>
+<callout emoji="📌">
+<p>每周一 09:00 自动扫上一周（周一到周日），最新置顶。</p>
 </callout>
 """
 

@@ -123,6 +123,8 @@ python3 skills/weekly-report/scripts/summarize.py \
 
 2. 读取 /tmp/weekly_<username>.md
 
+   **Zero-activity short-circuit**:如果原始数据里该成员的统计是 0 commit + 0 MR/PR(在文件里通常表现为"_该时间段内无提交记录_"或干脆没有该成员 section),subagent 应立即返回**空摘要**(写入 `/tmp/weekly_summary_<username>.md` 为空文件,或干脆不写)并明确告知主 agent "<username> 本周 0 commit,跳过"。主 agent 据此不把该成员写入分析报告的 per-user section,但 team 总览的 "活跃成员 X/Y" 仍按真实活跃数计算。
+
 3. 写一份精炼分析摘要到 /tmp/weekly_summary_<username>.md，格式如下：
 
 ### <display_name> (@<username>) — X commits, +X / -X
@@ -341,10 +343,10 @@ python3 skills/weekly-report/scripts/append_index.py \
   --date-range "<YYYY-MM-DD ~ YYYY-MM-DD>" \
   --raw-url "<raw_doc_url>" \
   --analysis-url "<analysis_doc_url>" \
-  --stats "<X 人 · Y commits · +A/-B>"
+  --stats "<Y commits · +A/-B [· 可选简评,例如 大改造周 / 清理周]>"
 ```
 
-`--stats` 来自 Step 4 团队总览那一行的数据（活跃人数、总提交、代码变更）；保持一行，无需详情。
+`--stats` 来自 Step 4 团队总览的提交数 / 代码变更（**不含活跃人数**——index 入口要 neat，活跃人数在汇总分析 doc 里看就够）。可附一条简评（"大改造周" / "清理周" 等），整行不要超过 60 字。
 
 `anchor_block_id` 为空或脚本检测到 stale 时会自动重新 fetch（查找顶部 callout）+ 回写 config。
 
@@ -367,7 +369,7 @@ python3 skills/weekly-report/scripts/append_index.py \
 
 1. **必须使用 subagent 并行采集**，禁止在主 Agent 中一次性处理所有成员的原始数据
 2. **禁止**手写 Python 脚本 — 使用已有的 `summarize.py` / `init_index.py` / `append_index.py`
-3. **禁止**跳过任何团队成员
+3. **采集阶段不跳过任何团队成员** — subagent 必须为每位成员跑 summarize.py。**但 0-commit 成员不写入 per-user 详细 section**(team 总览的 "活跃成员: X/Y 人" 已隐含表达非活跃数);summarize.py 在 generate_report 阶段会自动跳过 0-commit 用户
 4. **严禁编造**：汇总报告和消息中的每一条数据、每一个项目名、每一个 MR 链接都必须在原始数据文件中有明确来源。原始数据中没有的内容绝对不能出现在报告里
 5. **每个文档创建后必须执行权限转移**（包括 init_index.py 已内置）
 6. 所有 `lark-cli` 命令使用 `--as bot` 身份执行
@@ -385,7 +387,7 @@ python3 skills/weekly-report/scripts/append_index.py \
 | `@file` 报错 | 确认文件路径正确且文件存在 |
 | 文档创建成功但无法打开 | 检查 `doc_owner_open_ids` 是否正确 |
 | 文档标题显示 "Untitled" | 用了 `--api-version v2` + `--title`（v2 忽略 `--title`）。要么用 v1 默认，要么 markdown 首行加 `# 期望标题`，或事后 `docs +update --command str_replace --pattern "Untitled" --content "期望标题"` |
-| subagent 返回空数据 | 该成员本周无提交，在报告中标注"本周无新提交" |
+| subagent 返回空数据 | 该成员本周无提交。**不要为该成员写 per-user section**,team 总览的"活跃成员 X/Y"已经表达;只在分析报告必要时一句话提及"@xxx 未活跃" |
 | `index_doc.token is empty` | 先跑 `python3 scripts/init_index.py` 建索引文档 |
 | `could not locate anchor (callout) block_id` | 索引文档顶部 callout 被删了；恢复一个 callout 在最顶部，或 `init_index.py --force` 重建 |
 | `transfer_owner` / `permission.members.create` 报 exit 10 / `confirmation_required` | lark-cli high-risk-write 网关；init/append 脚本默认已带 `--yes`。手工调用时记得加 `--yes` |

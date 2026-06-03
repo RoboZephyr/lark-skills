@@ -614,17 +614,18 @@ def generate_report(gitlab_base_url, users_data, since, until, commit_mr_map, no
         num_projects = len(commits_by_project)
         total_adds, total_dels = compute_commit_stats(all_commits)
 
+        # Skip users with zero activity entirely — they're still counted in the
+        # team overview's "active members" line (e.g. "活跃成员: 1/3 人"), so
+        # readers can see the non-active count without a placeholder section.
+        if total_commits == 0 and not user_mrs:
+            continue
+
         lines.append(f"### 👤 {name} (@{username})")
         stat_parts = [f"**提交**: {total_commits} 次", f"**活跃项目**: {num_projects} 个"]
         if total_adds or total_dels:
             stat_parts.append(f"**代码变更**: +{total_adds:,} / -{total_dels:,} 行")
         lines.append(" | ".join(stat_parts))
         lines.append("")
-
-        if total_commits == 0 and not user_mrs:
-            lines.append("_该时间段内无提交记录_")
-            lines.extend(["", "---", ""])
-            continue
 
         summary = summarize_commits(effective_commits)
         if summary:
