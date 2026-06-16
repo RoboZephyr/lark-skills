@@ -12,6 +12,7 @@
 - `skills/lark-doc-deliver/SKILL.md` — 企业版：bot 创建 + 权限转移 + 消息投递（可被其他 Skill 调用）
 - `skills/doc-summary/SKILL.md` — 飞书文档搜索 + 汇总（调用 lark-doc-deliver 完成投递）
 - `skills/weekly-report/SKILL.md` — 团队周报生成
+- `skills/progress-report/SKILL.md` — 代码进度同步：按最近代码改动、分支和 PR 生成进度文档并投递
 
 执行任务时，读取对应 SKILL.md 并按步骤执行。
 
@@ -25,7 +26,7 @@
 ## 飞书 API 身份策略
 
 - **文档搜索**（`doc-summary`）：`--as user`（搜索 API 仅支持 user_access_token）
-- **企业版文档创建 / 权限管理 / 消息投递**（`lark-doc-deliver`、`weekly-report`）：`--as bot`
+- **企业版文档创建 / 权限管理 / 消息投递**（`lark-doc-deliver`、`weekly-report`、`progress-report`）：`--as bot`
 - **个人版文档创建**（`lark-doc-personal`）：必须 `--as user`；bot 创建的文档会落在 app 云空间，跨空间 move/transfer 在个人版不可行
 
 ## 开发规范

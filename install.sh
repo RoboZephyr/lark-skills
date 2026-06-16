@@ -22,7 +22,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ---------- 可安装的 Skills ----------
-ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report)
+ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report progress-report)
 
 usage() {
     echo -e "${BOLD}Lark Skills Installer${NC}"
@@ -111,6 +111,23 @@ install_skill() {
     if [ ! -f "$skill_dir/SKILL.md" ]; then
         error "Skill not found: $skill_dir/SKILL.md"
         return 1
+    fi
+
+    # 0. Project-level Claude Code commands for using this repo directly.
+    if [ $INSTALL_CLAUDE -eq 1 ]; then
+        local project_commands="$REPO_DIR/.claude/commands"
+        local project_command="$project_commands/$skill.md"
+        mkdir -p "$project_commands"
+        if [ -f "$project_command" ]; then
+            ok "Project:     .claude/commands/$skill.md (kept existing)"
+        else
+            cat > "$project_command" << EOF
+Read and follow the instructions in \`skills/$skill/SKILL.md\`.
+
+\$ARGUMENTS
+EOF
+            ok "Project:     .claude/commands/$skill.md"
+        fi
     fi
 
     # 1. Claude Code: 写入 ~/.claude/commands/

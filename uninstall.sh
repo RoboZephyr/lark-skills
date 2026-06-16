@@ -6,7 +6,7 @@ set -euo pipefail
 # 移除 Claude Code 和 Codex 的 skill 入口
 # ============================================================
 
-ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report)
+ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report progress-report)
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'

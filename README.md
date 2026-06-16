@@ -14,6 +14,7 @@
 | `lark-doc-deliver`  | 用 bot 创建 docx，转所有权给指定员工，发消息到群聊。**企业版多人协作场景。** |
 | `doc-summary`       | 按场景配置（关键词 + 团队成员）搜飞书文档，汇总后调 `lark-doc-deliver` 发布 |
 | `weekly-report`     | 从 GitHub（可选 GitLab）拉 commit，subagent 并行生成每人摘要，合并为周报 |
+| `progress-report`   | 从最近代码改动、分支和 PR 生成项目进度同步，创建飞书文档并投递到群 |
 
 如果只是想试跑一遍，推荐从 `lark-doc-personal` 开始 —— 只需要一个飞书个人版账号 + OAuth 一次。
 
@@ -111,7 +112,23 @@ OAuth user 身份创建文档到你的个人云空间。一次 `lark-cli auth lo
 
 ---
 
+### progress-report（项目进度同步）
+
+从 GitHub 仓库的最近代码改动、所有分支 commit 和 PR 状态整理项目进度，输出“已完成 / 进行中 / 接下来 / 待确认”，创建飞书文档并投递。
+
+```
+/progress-report
+/progress-report 今天
+/progress-report 最近 3 天
+```
+
+默认继承 `weekly-report` 的仓库、成员和飞书投递配置。详见 [`skills/progress-report/SKILL.md`](skills/progress-report/SKILL.md)。
+
+---
+
 ## 定时任务（launchd）
+
+定时任务通过 `launchd/run-weekly-report.sh` 执行：先尝试 Claude Code；如果 Claude 订阅、组织权限或其他错误导致非 0 退出，会自动 fallback 到 `codex exec` 继续执行 `/weekly-report 上周` 等价流程。
 
 ### 安装定时任务
 
@@ -214,6 +231,10 @@ lark-skills/
 │   ├── lark-doc-deliver/              # 通用能力 Skill：飞书文档投递
 │   │   ├── SKILL.md
 │   │   └── config.example.yaml
+│   ├── progress-report/               # 场景 Skill：项目进度同步
+│   │   ├── SKILL.md
+│   │   ├── config.example.yaml
+│   │   └── scripts/
 │   └── weekly-report/                 # 场景 Skill：团队周报
 │       ├── SKILL.md
 │       ├── config.example.yaml
@@ -252,4 +273,3 @@ cd lark-skills && ./install.sh
 Try `lark-doc-personal` first — it only needs a Lark personal account and one OAuth login.
 
 MIT.
-

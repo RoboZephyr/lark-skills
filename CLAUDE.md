@@ -49,6 +49,12 @@ skills/weekly-report/           # 周报生成
 ├── config.yaml
 ├── config.example.yaml
 └── scripts/
+
+skills/progress-report/         # 项目进度同步
+├── SKILL.md
+├── config.yaml
+├── config.example.yaml
+└── scripts/
 ```
 
 对应入口：`.claude/commands/<skill-name>.md` — 轻量 wrapper，引用 SKILL.md。
@@ -64,7 +70,7 @@ skills/weekly-report/           # 周报生成
 - **文档搜索**（`doc-summary`）：使用用户身份（`--as user`），因为搜索 API 仅支持 user_access_token。需一次性执行 `lark-cli auth login --domain docs` 授权
 - **企业版文档创建 / 权限管理 / 消息投递**（`lark-doc-deliver`）：使用 bot（`--as bot`），由 `lark.identity` 配置控制
 - **个人版文档创建**（`lark-doc-personal`）：必须用 `--as user`。个人版 bot 创建的文档会落在 app 云空间（用户 UI 不可见），且 `transfer_owner` + 跨空间 `drive +move` 在个人版不可行
-- **weekly-report**：使用 bot（`--as bot`），覆盖文档创建、权限管理、消息投递
+- **weekly-report / progress-report**：使用 bot（`--as bot`），覆盖文档创建、权限管理、消息投递
 
 ### Subagent 并行模式
 

@@ -69,8 +69,20 @@ Token 优先级：
 从各成员的 `extra_emails` 字段构造 `--extra-emails` 参数：
 格式 `user1=email1;email2,user2=email3`（多邮箱 `;` 分隔，多用户 `,` 分隔）。
 
+从 `team.gitlab_to_github` 构造 `--github-users` 参数：
+格式 `user1=gh1;gh1_alt,user2=gh2`（同一成员多个 GitHub login 用 `;` 分隔，多成员用 `,` 分隔）。GitHub login 匹配必须按大小写不敏感处理。
+
 从各成员的 `display_name` 字段构造 `--display-names` 参数：
 格式 `user1=张三,user2=李四`（多用户 `,` 分隔）。不传则报告标题用 GitHub handle。
+
+GitHub 采集口径：
+- 周报反映**实际工作量**，不是只反映 main/default branch
+- `summarize.py` 必须遍历 GitHub repo 的所有分支，按 SHA 去重后统计
+- 报告必须区分状态：
+  - 已合并 PR/MR：可以写为已合并、进入主线
+  - 进行中 PR/MR：只能写为进行中
+  - 未归属 PR/MR 的分支 commit：只能写为“分支工作 / 未确认合并”，不得写成已合并或已上线
+- 汇总分析和群消息里的“关键进展”必须避免把分支工作写成主线已完成成果；如需提及，写“分支工作推进了 ...，需确认合并/验证状态”
 
 ### Step 2: 并行采集每位成员的 Commit 数据
 
@@ -185,7 +197,7 @@ lark-cli docs +fetch --url "<okr.doc_url>" --as bot
 （按提交数降序排列，包含 MR 链接）
 
 ## 本周关键进展
-1. 3-5 条核心成果
+1. 3-5 条核心成果，必须标明已合并 / 进行中 / 分支工作
 
 ## OKR 进展映射
 （仅在 okr.enabled 时生成此节）
@@ -248,7 +260,8 @@ lark-cli docs +create \
 lark-cli drive permission.members transfer_owner \
   --params '{"token":"<document_id>","type":"docx","stay_put":"<stay_put>","remove_old_owner":"<remove_old_owner>","old_owner_perm":"<old_owner_perm>","need_notification":"false"}' \
   --data '{"member_type":"<member_type>","member_id":"<第一个 doc_owner_open_ids>"}' \
-  --as bot
+  --as bot \
+  --yes
 ```
 
 **5b. 重新授权 Bot**：
@@ -257,7 +270,8 @@ lark-cli drive permission.members transfer_owner \
 lark-cli drive permission.members create \
   --params '{"token":"<document_id>","type":"docx","need_notification":"false"}' \
   --data '{"member_type":"openid","member_id":"<bot_open_id>","perm":"full_access"}' \
-  --as bot
+  --as bot \
+  --yes
 ```
 
 **5c. 授权其余成员**（如有多个 `doc_owner_open_ids`）：
@@ -266,10 +280,11 @@ lark-cli drive permission.members create \
 lark-cli drive permission.members create \
   --params '{"token":"<document_id>","type":"docx","need_notification":"false"}' \
   --data '{"member_type":"<member_type>","member_id":"<open_id>","perm":"full_access"}' \
-  --as bot
+  --as bot \
+  --yes
 ```
 
-> 权限操作失败时记录错误，不中断流程。
+> owner transfer 失败时不要发送群消息，避免投递不可访问的文档。其余成员授权失败时记录错误并在最终结果中报告。
 
 ### Step 7: 消息投递
 

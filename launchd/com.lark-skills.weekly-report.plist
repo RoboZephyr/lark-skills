@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Template — replace the following before installing:
-    YOUR_USERNAME      = your macOS short username (output of `whoami`)
-    PATH_TO_CLAUDE     = absolute path to `claude` binary (`which claude`)
-    PATH_TO_REPO       = where you cloned lark-skills (e.g. /Users/YOUR_USERNAME/workspace/lark-skills)
-    PATH_TO_NODE_BIN   = directory containing `claude` and `node` (e.g. /Users/YOUR_USERNAME/.local/share/mise/installs/node/22.12.0/bin)
+  Template — replace:
+    PATH_TO_REPO     = where you cloned lark-skills
+    PATH_TO_NODE_BIN = directory containing claude/codex/node
+    YOUR_USERNAME    = your macOS short username
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -14,11 +13,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>PATH_TO_CLAUDE</string>
-        <string>-p</string>
-        <string>/weekly-report 上周</string>
-        <string>--allowedTools</string>
-        <string>Bash,Read,Write,Edit,Glob,Grep</string>
+        <string>PATH_TO_REPO/launchd/run-weekly-report.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
@@ -46,6 +41,8 @@
         <string>PATH_TO_NODE_BIN:/usr/local/bin:/usr/bin:/bin</string>
         <key>HOME</key>
         <string>/Users/YOUR_USERNAME</string>
+        <key>LARK_SKILLS_REPO</key>
+        <string>PATH_TO_REPO</string>
     </dict>
 </dict>
 </plist>

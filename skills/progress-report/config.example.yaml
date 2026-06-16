@@ -1,0 +1,36 @@
+# ============================================================
+# Progress Report — 配置模板
+# ============================================================
+# 默认继承 weekly-report 的 GitHub / team / lark / delivery 配置。
+# 复制为 config.yaml 后，只需要填写想覆盖的字段。
+
+extends_config: "skills/weekly-report/config.yaml"
+
+github:
+  # 留空则使用 extends_config.github.repos
+  repos: []
+  # 优先级: GITHUB_TOKEN 环境变量 > 本字段 > gh auth token
+  token: ""
+
+team:
+  # 留空则使用 extends_config.team
+  members: []
+  gitlab_to_github: {}
+
+report:
+  default_days: 7
+  include_all_branches: true
+  include_open_prs: true
+  # PR 模式不受时间范围限制；通过 --pr 指定 PR URL / owner/repo#123 / #123
+  max_branches_per_repo: 80
+  max_commits_per_section: 12
+  language: zh
+
+lark:
+  # 留空则使用 extends_config.lark
+  permissions: {}
+
+delivery:
+  # 留空则使用 extends_config.delivery
+  enabled: true
+  targets: []

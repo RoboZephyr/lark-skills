@@ -54,17 +54,13 @@ lark-cli docs +create \
 
 从输出 JSON 中提取：
 - `doc_url`（路径: `.data.doc_url`）
-- `document_id`（路径: `.data.document.document_id`，用于权限操作）
+- `document_id`（优先路径: `.data.doc_id`；兼容路径: `.data.document.document_id` / `.data.document_id`，用于权限操作）
 
 清理临时文件：`rm -f ./lark_deliver_temp.md`
 
-### Step 3 & 4: 权限转移 + 消息投递（可并行）
+### Step 3: 自动权限转移
 
-> Step 3 和 Step 4 无依赖关系，可以并行执行。
-
-#### 3. 转移文档权限
-
-如果 `lark.permissions` 已配置：
+文档创建后必须先完成权限转移，再投递消息。不要并行执行权限转移和消息投递，避免群里收到不可访问的文档。
 
 **3a. 转移所有权**（给第一个 `doc_owner_open_ids`）：
 
@@ -72,7 +68,8 @@ lark-cli docs +create \
 lark-cli drive permission.members transfer_owner \
   --params '{"token":"<document_id>","type":"docx","stay_put":"<stay_put>","remove_old_owner":"<remove_old_owner>","old_owner_perm":"<old_owner_perm>","need_notification":"false"}' \
   --data '{"member_type":"<member_type>","member_id":"<第一个 doc_owner_open_ids>"}' \
-  --as bot
+  --as bot \
+  --yes
 ```
 
 **3b. 重新授权 Bot**：
@@ -81,7 +78,8 @@ lark-cli drive permission.members transfer_owner \
 lark-cli drive permission.members create \
   --params '{"token":"<document_id>","type":"docx","need_notification":"false"}' \
   --data '{"member_type":"openid","member_id":"<bot_open_id>","perm":"full_access"}' \
-  --as bot
+  --as bot \
+  --yes
 ```
 
 **3c. 授权其余成员**（如有多个 `doc_owner_open_ids`）：
@@ -90,12 +88,14 @@ lark-cli drive permission.members create \
 lark-cli drive permission.members create \
   --params '{"token":"<document_id>","type":"docx","need_notification":"false"}' \
   --data '{"member_type":"<member_type>","member_id":"<open_id>","perm":"full_access"}' \
-  --as bot
+  --as bot \
+  --yes
 ```
 
-> 权限操作失败时记录错误，不中断流程。
+如果 `doc_owner_open_ids[0]` 或 `bot_open_id` 缺失，停止投递并报告配置缺失。
+如果 owner transfer 失败，停止消息投递并报告失败；不要发送一个可能无法访问的文档链接。
 
-#### 4. 消息投递
+### Step 4: 消息投递
 
 如果 `delivery.enabled` 为 true：
 
@@ -139,8 +139,9 @@ errors: <如有失败，列出>
 3. **文档创建身份由 `lark.identity` 配置决定**（默认 `bot`，某些场景需要 `user`）
 4. **`@file` 仅支持相对路径**：`lark-cli docs +create --markdown @file.md`，需先 cp 到工作目录
 5. **`$(cat file)` 传递消息内容**：`im +messages-send --markdown` 不支持 `@file`
-6. 所有操作失败时记录错误、继续执行，不中断整体流程
+6. 文档创建后必须先 transfer owner，再投递消息；owner transfer 失败时停止投递
 7. 临时文件用完即删
+8. `transfer_owner` / `permission.members.create` 必须带 `--yes`，否则 lark-cli high-risk-write 网关会要求确认并导致自动流程失败
 
 ## Troubleshooting
 
@@ -148,6 +149,7 @@ errors: <如有失败，列出>
 |---|---|
 | `lark-cli: not configured` | `echo "<secret>" \| lark-cli config init --app-id "<id>" --app-secret-stdin --brand feishu` |
 | 权限转移失败 | 检查飞书应用权限是否包含 `drive:drive` 和 `docs:permission.member:transfer` |
+| 权限操作报 `confirmation_required` | 命令缺少 `--yes` |
 | `@file` 报错 | 确认文件路径是相对路径且文件存在 |
 | 消息投递失败 `missing_scope` | 消息投递必须用 `--as bot` |
 | 文档创建成功但无法打开 | 检查 `doc_owner_open_ids` 是否正确 |

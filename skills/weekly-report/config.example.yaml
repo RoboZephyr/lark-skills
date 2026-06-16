@@ -29,10 +29,11 @@ team:
       extra_emails:
         - "alias@local-machine.local"
 
-  # GitLab → GitHub 用户名映射（用于跨平台关联）
+  # GitLab/local username → GitHub 登录名映射（用于跨平台关联）
+  # 同一成员有多个 GitHub 账号/提交身份时，用 ; 分隔。
   gitlab_to_github:
     user1: "gh-user1"
-    user2: "gh-user2"
+    user2: "gh-user2;gh-user2-alt"
 
 # ------ Lark / 飞书文档权限 ------
 lark:

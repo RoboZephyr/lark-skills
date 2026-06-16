@@ -18,6 +18,7 @@ Optimized for minimal LLM token usage:
 import argparse
 import http.client
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -42,6 +43,7 @@ RETRYABLE_ERRORS = (
 )
 MAX_RETRIES = 3
 RETRY_BACKOFF_BASE = 1.5  # seconds, exponential
+GITHUB_SQUASH_PR_RE = re.compile(r'\(#(\d+)\)\s*$')
 
 
 # ============================================================
@@ -131,8 +133,7 @@ def github_api(token, endpoint, params=None):
 
         data, err = _http_get_json(req, f"GitHub {endpoint}")
         if err:
-            print(f"  ✗ {err}", file=sys.stderr)
-            break
+            raise RuntimeError(err)
         if not data:
             break
         if isinstance(data, list):
@@ -159,12 +160,37 @@ def github_get_token():
     return None
 
 
-def github_fetch_repo_commits(token, owner, repo, since, until):
-    """Fetch all commits in a GitHub repo within a date range."""
-    commits = github_api(token, f'/repos/{owner}/{repo}/commits', {
+def parse_github_aliases(value):
+    """Parse one or more GitHub logins from a mapping value."""
+    if isinstance(value, (list, tuple, set)):
+        raw_values = value
+    else:
+        raw_values = str(value or '').replace('|', ';').split(';')
+    return [v.strip() for v in raw_values if v and v.strip()]
+
+
+def primary_github_alias(username, gh_user_map):
+    """Return the first configured GitHub login for display fallback."""
+    aliases = gh_user_map.get(username, [])
+    if not isinstance(aliases, (list, tuple, set)):
+        aliases = parse_github_aliases(aliases)
+    return next((alias for alias in aliases if alias), username)
+
+
+def github_fetch_repo_branches(token, owner, repo):
+    """Fetch branches in a GitHub repo."""
+    return github_api(token, f'/repos/{owner}/{repo}/branches')
+
+
+def github_fetch_repo_commits(token, owner, repo, since, until, branch=''):
+    """Fetch commits in a GitHub repo branch within a date range."""
+    params = {
         'since': f"{since}T00:00:00Z",
         'until': f"{until}T23:59:59Z",
-    })
+    }
+    if branch:
+        params['sha'] = branch
+    commits = github_api(token, f'/repos/{owner}/{repo}/commits', params)
     return commits
 
 
@@ -216,6 +242,7 @@ def normalize_github_commit(commit, owner, repo):
         'message': message,
         'author_email': author.get('email', '').strip().lower(),
         'author_name': author.get('name', ''),
+        'author_login': (commit.get('author') or {}).get('login', ''),
         'committed_date': author.get('date', ''),
         'stats': {
             'additions': stats.get('additions', 0),
@@ -367,6 +394,60 @@ def fetch_commit_detail(base_url, token, project_id, commit_sha):
 # ============================================================
 # Shared logic
 # ============================================================
+
+def normalize_login(value):
+    """Normalize GitHub/GitLab usernames for identity comparison."""
+    return (value or '').strip().lower()
+
+
+def github_aliases_for_user(username, gh_user_map):
+    """Return all configured GitHub login aliases for a team member."""
+    aliases = [username]
+    aliases.extend(gh_user_map.get(username, []))
+    normalized = []
+    seen = set()
+    for alias in aliases:
+        key = normalize_login(alias)
+        if key and key not in seen:
+            normalized.append(alias)
+            seen.add(key)
+    return normalized
+
+
+def github_login_matches(actual_login, expected_login):
+    """GitHub usernames are case-insensitive; API casing may differ from config."""
+    return normalize_login(actual_login) == normalize_login(expected_login)
+
+
+def github_login_matches_any(actual_login, expected_logins):
+    """Return whether a GitHub login matches any configured alias."""
+    return any(github_login_matches(actual_login, login) for login in expected_logins)
+
+
+def github_commit_matches_user(commit, username, gh_user_map, emails):
+    """Return whether a GitHub commit belongs to a configured team member."""
+    gh_aliases = github_aliases_for_user(username, gh_user_map)
+    normalized_aliases = {normalize_login(alias) for alias in gh_aliases}
+    email = commit.get('author_email', '').strip().lower()
+    author_login = commit.get('author_login', '')
+    return (
+        (email and (email in emails or email in normalized_aliases))
+        or github_login_matches_any(author_login, gh_aliases)
+    )
+
+
+def github_commit_pr_number(commit):
+    """Extract a GitHub PR number from a squash-merge commit title, if present."""
+    title = commit.get('title', commit.get('message', '')).split('\n')[0].strip()
+    match = GITHUB_SQUASH_PR_RE.search(title)
+    return int(match.group(1)) if match else None
+
+
+def commit_in_date_range(commit, since, until):
+    """Return whether a normalized commit falls within the report date range."""
+    date_str = (commit.get('committed_date') or commit.get('created_at') or '')[:10]
+    return bool(date_str) and since <= date_str <= until
+
 
 def summarize_commits(commits):
     """Categorize commits by conventional-commit prefix."""
@@ -559,6 +640,11 @@ def generate_report(gitlab_base_url, users_data, since, until, commit_mr_map, no
             f"**代码变更**: +{team_total_adds:,} / -{team_total_dels:,} 行"
         )
         lines.append("")
+        lines.append(
+            "> 统计口径：GitHub 数据按所有分支采集并按 SHA 去重，用于反映实际工作量；"
+            "只有标注为已合并的 PR/MR 才代表进入主线。未归属 PR/MR 的提交按分支工作处理，需另行确认是否已合并。"
+        )
+        lines.append("")
 
     # --- Project dimension summary ---
     if not no_header:
@@ -726,7 +812,7 @@ def generate_report(gitlab_base_url, users_data, since, until, commit_mr_map, no
                     large_tag = ""
                 commit_url = get_commit_url(commit, gitlab_base_url, project_path)
                 lines.append(
-                    f"- [`{cid[:8]}`]({commit_url}) {msg}{cs}{large_tag} — {date_str}"
+                    f"- [`{cid[:8]}`]({commit_url}) {msg}{cs}{large_tag} — {date_str} — 分支工作/未确认合并"
                 )
             remaining = len(standalone) - MAX_STANDALONE_COMMITS
             if remaining > 0:
@@ -770,12 +856,12 @@ def main():
     github_token = args.github_token
 
     # Parse GitHub user mapping
-    gh_user_map = {}  # gitlab_username -> github_username
+    gh_user_map = {}  # local username -> [github_login, ...]
     if args.github_users:
         for pair in args.github_users.split(','):
             if '=' in pair:
                 gl, gh = pair.strip().split('=', 1)
-                gh_user_map[gl.strip()] = gh.strip()
+                gh_user_map[gl.strip()] = parse_github_aliases(gh)
 
     # Parse display name overrides: user1=Name1,user2=Name2
     display_names_map = {}
@@ -802,8 +888,10 @@ def main():
     if github_repos and not github_token:
         github_token = github_get_token()
         if not github_token:
-            print("⚠️ 无法获取 GitHub token，跳过 GitHub 数据", file=sys.stderr)
-            github_repos = []
+            raise SystemExit(
+                "无法获取 GitHub token，不能采集 GitHub 数据。"
+                "请设置 GITHUB_TOKEN、填写 github.token，或重新执行 gh auth login。"
+            )
 
     has_gitlab = bool(base_url and gl_token)
 
@@ -1025,10 +1113,26 @@ def main():
             owner, repo = parts
             gh_pid = f'gh:{owner}/{repo}'
 
-            # Fetch all commits in the repo for the date range
-            print(f"  📦 {owner}/{repo}: 获取提交...", file=sys.stderr)
-            raw_commits = github_fetch_repo_commits(github_token, owner, repo, since, until)
-            print(f"    {len(raw_commits)} 原始提交", file=sys.stderr)
+            # Fetch commits from all branches in the repo for the date range.
+            # GitHub's commits endpoint only covers the default branch unless
+            # sha=<branch> is supplied; progress work often lives on open PR
+            # branches, so enumerate branches and de-duplicate by SHA.
+            print(f"  📦 {owner}/{repo}: 获取分支提交...", file=sys.stderr)
+            raw_commits_by_sha = {}
+            branches = github_fetch_repo_branches(github_token, owner, repo)
+            branch_names = [b.get('name', '') for b in branches if b.get('name')]
+            if not branch_names:
+                branch_names = ['']
+            for branch_name in branch_names:
+                branch_commits = github_fetch_repo_commits(
+                    github_token, owner, repo, since, until, branch_name
+                )
+                for c in branch_commits:
+                    sha = c.get('sha', '')
+                    if sha and sha not in raw_commits_by_sha:
+                        raw_commits_by_sha[sha] = c
+            raw_commits = list(raw_commits_by_sha.values())
+            print(f"    {len(raw_commits)} 原始提交 ({len(branch_names)} branches, deduped)", file=sys.stderr)
 
             # Fetch commit details (for stats) concurrently
             # GitHub list commits endpoint doesn't include stats
@@ -1049,13 +1153,14 @@ def main():
 
             # Assign commits to users by email
             for nc in detailed_commits:
-                email = nc.get('author_email', '')
                 assigned = False
                 for username in user_list:
-                    gh_username = gh_user_map.get(username, username)
                     emails = user_emails_map.get(username, set())
-                    if email in emails or email == gh_username:
+                    if github_commit_matches_user(nc, username, gh_user_map, emails):
                         github_user_commits[username][(gh_pid, f'{owner}/{repo}')].append(nc)
+                        email = nc.get('author_email', '')
+                        if email:
+                            user_emails_map[username].add(email)
                         assigned = True
                         break
                 if not assigned:
@@ -1064,10 +1169,11 @@ def main():
                         if raw_c.get('sha') == nc.get('id'):
                             gh_author = (raw_c.get('author') or {}).get('login', '')
                             for username in user_list:
-                                gh_username = gh_user_map.get(username, username)
-                                if gh_author == gh_username:
+                                if github_login_matches_any(
+                                        gh_author, github_aliases_for_user(username, gh_user_map)):
                                     github_user_commits[username][(gh_pid, f'{owner}/{repo}')].append(nc)
                                     # Also learn this email
+                                    email = nc.get('author_email', '')
                                     if email:
                                         user_emails_map[username].add(email)
                                     assigned = True
@@ -1081,8 +1187,7 @@ def main():
             for pr in raw_prs:
                 pr_author = (pr.get('user') or {}).get('login', '')
                 for username in user_list:
-                    gh_username = gh_user_map.get(username, username)
-                    if pr_author == gh_username:
+                    if github_login_matches_any(pr_author, github_aliases_for_user(username, gh_user_map)):
                         norm_pr = normalize_github_pr(pr, owner, repo)
                         github_user_mrs[username].append(norm_pr)
 
@@ -1097,7 +1202,41 @@ def main():
                                 for c in (pr_commits or [])
                                 if isinstance(c, dict) and c.get('sha')
                             ]
-                            github_mr_commits[username][(gh_pid, pr_number)] = normalized_pr_commits
+                            in_range_pr_commits = [
+                                c for c in normalized_pr_commits
+                                if commit_in_date_range(c, since, until)
+                            ]
+                            project_key = (gh_pid, f'{owner}/{repo}')
+                            existing_project_commits = github_user_commits[username][project_key]
+                            represented_commits = [
+                                c for c in existing_project_commits
+                                if github_commit_pr_number(c) == pr_number
+                            ]
+                            github_mr_commits[username][(gh_pid, pr_number)] = (
+                                represented_commits + in_range_pr_commits
+                            )
+
+                            # If the PR is already represented by a default-branch
+                            # squash commit, count that commit instead of also
+                            # counting every original PR commit.
+                            if represented_commits:
+                                break
+
+                            existing_ids = {
+                                c.get('id')
+                                for c in existing_project_commits
+                            }
+                            emails = user_emails_map.get(username, set())
+                            for pc in in_range_pr_commits:
+                                cid = pc.get('id', '')
+                                if cid in existing_ids:
+                                    continue
+                                if github_commit_matches_user(pc, username, gh_user_map, emails):
+                                    existing_project_commits.append(pc)
+                                    existing_ids.add(cid)
+                                    email = pc.get('author_email', '')
+                                    if email:
+                                        user_emails_map[username].add(email)
                         break
 
             # Print per-user GitHub stats
@@ -1126,7 +1265,7 @@ def main():
                 user = {**user, 'name': display_names_map[username]}
         else:
             # GitHub-only: keep config username as @handle, prefer display_name for header
-            gh_username = gh_user_map.get(username, username)
+            gh_username = primary_github_alias(username, gh_user_map)
             user = {
                 'username': username,
                 'name': display_names_map.get(username, gh_username),

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Progress Report"
+  short_description: "Summarize repository progress and publish it to Lark."
+  default_prompt: "Generate a progress report for the recent code changes and deliver it to the configured Lark targets."
