@@ -1,11 +1,11 @@
 ---
 name: progress-report
-description: Generate and deliver a Lark/Feishu progress update from recent repository changes or a specific GitHub PR. Use when the user asks to 同步进度, 生成进度汇报, 发项目进展到群, 这个 PR 做了什么, summarize recent code progress, publish engineering progress, explain a PR, or describe what changed and what to do next based on commits, branches, and PRs.
+description: Generate and deliver a plain-language, decision-oriented Lark/Feishu progress update from recent repository changes or a specific GitHub PR. Use when the user asks to 同步进度, 生成进度汇报, 发项目进展到群, 这个 PR 做了什么, summarize recent code progress, publish engineering progress, explain a PR, or describe what changed, why that approach was chosen, what it means for the workflow, and what to do next based on commits, branches, and PRs.
 ---
 
 # Progress Report
 
-生成一份面向团队同步的工程进度报告：从 GitHub 仓库最近代码改动或指定 PR 采集数据，整理“已完成 / 进行中 / 接下来 / 风险或待确认”，创建飞书文档并发送到配置的用户或群聊。
+生成一份面向团队同步的工程进度报告：从 GitHub 仓库最近代码改动或指定 PR 采集数据，先形成可追溯事实底稿，再改写成平白、面向决策的同步内容，说明“做了什么 / 为什么这样做 / 对工作流有什么意义 / 还有什么待确认 / 下一步是什么”，创建飞书文档并发送到配置的用户或群聊。
 
 ## Prerequisites
 
@@ -83,15 +83,43 @@ python3 skills/progress-report/scripts/collect_progress.py \
 - 只保留能匹配团队成员 GitHub login 或 extra_emails 的提交
 - 报告必须只使用采集到的数据，不能编造
 
-### Step 3: 人工/Agent 补充判断
+### Step 3: Agent 叙事改写
 
-读取 `/tmp/progress_report.md` 和 `/tmp/progress_report_raw.json`，必要时将脚本的“接下来建议”改写成更清晰的行动项。
+读取 `/tmp/progress_report.md` 和 `/tmp/progress_report_raw.json`，把脚本生成的事实底稿改写成团队能直接理解的进度同步。默认结构：
+
+```markdown
+# 项目进度同步 (<scope>)
+
+## 结论
+用 1-3 句说明现在进展到哪里，以及这次同步最重要的变化。
+
+## 做了什么
+用业务/工作流语言说明完成的事情，不要直接堆 commit 标题。
+
+## 为什么这样做
+说明选择这个方案的原因、取舍或规避的风险。
+
+## 对工作流的意义
+说明它让团队后续工作更顺、成本更可控、链路更可审计，或减少了什么阻塞。
+
+## 仍需确认
+只写真实不确定项，不能把猜测写成事实。
+
+## 下一步
+写清楚后续行动，不确定来源的行动项标注为“建议”。
+
+## 代码证据
+保留 PR、commit、文件范围等可追溯证据。
+```
 
 必须遵守：
 
 - 每个已完成事项都要能追溯到 commit、PR 或 PR file diff
 - “接下来”只能来自打开 PR、近期分支名、commit 标题中的明确线索，或标注为“建议”
 - 不确定的事项放到“待确认”，不要写成事实
+- 群消息优先讲人话：先讲结论，再讲原因，再讲意义，再讲下一步
+- 不要把群消息写成 changelog、commit digest 或测试日志；SHA、文件清单、OQ 编号只作为证据或链接出现
+- 如果代码事实不足以支撑“为什么”和“意义”，保留为待确认或请用户补上下文，不要编造
 
 ### Step 4: 创建飞书文档
 
@@ -155,16 +183,19 @@ lark-cli drive permission.members create \
 ```markdown
 **项目进度同步 (<scope>)**
 
-**已完成**
-1. ...
+同步一下 <项目/模块> 的关键进展。
 
-**进行中**
-1. ...
+我们现在完成了 <用平白语言描述的变化>。
 
-**接下来**
-1. ...
+这次选择 <方案>，主要是因为 <原因/风险/取舍>。
 
-📝 [查看完整进度文档](<doc_url>)
+这对工作流的意义是：<影响>。
+
+目前仍需确认：<不确定项>。
+
+下一步：<行动项>。
+
+[查看完整进度文档](<doc_url>)
 ```
 
 发送到 `delivery.targets`：
@@ -198,3 +229,4 @@ lark-cli im +messages-send --user-id "<open_id>" --markdown "$(cat progress_mess
 5. 0 数据时不要编造，输出“该范围内未匹配到团队成员代码改动”，并建议检查仓库配置、GitHub 用户映射或时间范围。
 6. 飞书文档创建后必须自动 transfer owner，并重新授权 bot；权限命令必须带 `--yes`。
 7. 飞书文档和消息投递使用 bot 身份。
+8. 群消息面向团队协作，不面向代码审计；把可追溯证据放进文档，不要把第一屏写成提交清单。

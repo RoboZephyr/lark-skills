@@ -233,25 +233,27 @@ def render_report(raw: dict, max_items: int) -> str:
     lines = [
         f"# 项目进度同步 ({date_range})",
         "",
-        "## 总览",
+        "## 结论",
         "",
         f"- 数据来源: {', '.join(raw['repos'])}",
         f"- 匹配提交: {len(commits)} 次",
         f"- 相关 PR: {len(prs)} 个",
         f"- 活跃成员: {len(by_member)} 人",
+        "- 这是代码事实底稿；发布前请结合业务上下文改写成一句清楚结论。",
         "",
-        "## 已完成",
+        "## 做了什么",
         "",
     ]
 
     merged = [p for p in prs if p.get("merged_at")]
     if merged:
+        lines.append("### 已合并")
         for pr in merged[:max_items]:
             lines.append(f"- [{pr['repo']} #{pr['number']}]({pr['url']}) {pr['title']} — 已合并")
     else:
         lines.append("- 未发现该时间范围内已合并 PR。")
 
-    lines.extend(["", "## 进行中", ""])
+    lines.extend(["", "### 进行中", ""])
     open_prs = [p for p in prs if p.get("state") == "open"]
     if open_prs:
         for pr in open_prs[:max_items]:
@@ -259,7 +261,29 @@ def render_report(raw: dict, max_items: int) -> str:
     else:
         lines.append("- 未发现打开中的相关 PR。")
 
-    lines.extend(["", "## 代码改动明细", ""])
+    lines.extend([
+        "",
+        "## 为什么这样做",
+        "",
+        "- 请结合需求背景补充：这次改动解决的阻塞、风险或工作流问题。不要仅凭 commit 标题编造原因。",
+        "",
+        "## 对工作流的意义",
+        "",
+        "- 请结合实际场景补充：对交付、质量、成本、可审计性或协作链路的影响。",
+        "",
+        "## 下一步",
+        "",
+    ])
+    if open_prs:
+        for pr in open_prs[:max_items]:
+            lines.append(f"- 推进 PR [{pr['repo']} #{pr['number']}]({pr['url']}) 的 review、验证或合并。")
+    else:
+        lines.append("- 根据上述改动确认下一步任务拆分；当前没有从打开 PR 中提取到明确待办。")
+
+    lines.extend(["", "## 仍需确认", ""])
+    lines.append("- 未合并分支上的提交不等于已发布；需要结合 PR 状态确认对外交付口径。")
+
+    lines.extend(["", "## 代码证据", ""])
     if not commits:
         lines.append("- 该范围内未匹配到团队成员代码改动。请检查仓库配置、GitHub 用户映射或时间范围。")
     for member, items in sorted(by_member.items(), key=lambda x: len(x[1]), reverse=True):
@@ -270,16 +294,6 @@ def render_report(raw: dict, max_items: int) -> str:
         if len(items) > max_items:
             lines.append(f"- ... 及 {len(items) - max_items} 条其他提交")
         lines.append("")
-
-    lines.extend(["## 接下来", ""])
-    if open_prs:
-        for pr in open_prs[:max_items]:
-            lines.append(f"- 推进 PR [{pr['repo']} #{pr['number']}]({pr['url']}) 的 review、验证或合并。")
-    else:
-        lines.append("- 根据上述改动确认下一步任务拆分；当前没有从打开 PR 中提取到明确待办。")
-
-    lines.extend(["", "## 待确认", ""])
-    lines.append("- 未合并分支上的提交不等于已发布；需要结合 PR 状态确认对外交付口径。")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -295,7 +309,7 @@ def render_pr_report(raw: dict, max_items: int) -> str:
     lines = [
         f"# PR 进度同步: {pr['repo']} #{pr['number']}",
         "",
-        "## 总览",
+        "## 结论",
         "",
         f"- PR: [{pr['title']}]({pr['url']})",
         f"- 状态: {status}",
@@ -304,6 +318,7 @@ def render_pr_report(raw: dict, max_items: int) -> str:
         f"- 文件: {pr.get('changed_files', len(files))} 个",
         f"- 代码变更: +{pr.get('additions', 0):,} / -{pr.get('deletions', 0):,}",
         f"- 参与成员: {len(by_member)} 人",
+        "- 这是 PR 事实底稿；发布前请结合业务上下文改写成一句清楚结论。",
         "",
         "## 这个 PR 做了什么",
         "",
@@ -317,7 +332,31 @@ def render_pr_report(raw: dict, max_items: int) -> str:
     else:
         lines.append("- 未匹配到团队成员提交；请检查 GitHub 用户映射或 PR 作者。")
 
-    lines.extend(["", "## 涉及范围", ""])
+    lines.extend([
+        "",
+        "## 为什么这样做",
+        "",
+        "- 请结合需求背景补充：这个 PR 选择该实现方式的原因、取舍或规避的风险。",
+        "",
+        "## 对工作流的意义",
+        "",
+        "- 请结合实际场景补充：这个 PR 对交付、质量、成本、可审计性或协作链路的影响。",
+        "",
+        "## 下一步",
+        "",
+    ])
+    if pr.get("state") == "open":
+        lines.append("- 完成 review、验证和必要修订后推进合并。")
+        lines.append("- 合并前确认上述文件改动是否覆盖预期范围。")
+    elif pr.get("merged_at"):
+        lines.append("- 跟进合并后的验证、发布或文档同步。")
+    else:
+        lines.append("- PR 已关闭；确认是否已有替代 PR 或无需继续推进。")
+
+    lines.extend(["", "## 仍需确认", ""])
+    lines.append("- 本报告仅基于 PR commits 和 files；业务效果、上线状态和外部依赖需要人工确认。")
+
+    lines.extend(["", "## 代码证据", "", "### 涉及范围", ""])
     if files:
         for f in files[:max_items]:
             changes = f"+{f.get('additions', 0)}/-{f.get('deletions', 0)}"
@@ -327,25 +366,13 @@ def render_pr_report(raw: dict, max_items: int) -> str:
     else:
         lines.append("- 未获取到文件改动列表。")
 
-    lines.extend(["", "## 成员贡献", ""])
+    lines.extend(["", "### 成员贡献", ""])
     if by_member:
         for member, items in sorted(by_member.items(), key=lambda x: len(x[1]), reverse=True):
             display = raw["members"].get(member, {}).get("display_name", member)
             lines.append(f"- {display} (@{member}): {len(items)} commits")
     else:
         lines.append("- 未匹配到团队成员。")
-
-    lines.extend(["", "## 接下来", ""])
-    if pr.get("state") == "open":
-        lines.append("- 完成 review、验证和必要修订后推进合并。")
-        lines.append("- 合并前确认上述文件改动是否覆盖预期范围。")
-    elif pr.get("merged_at"):
-        lines.append("- 跟进合并后的验证、发布或文档同步。")
-    else:
-        lines.append("- PR 已关闭；确认是否已有替代 PR 或无需继续推进。")
-
-    lines.extend(["", "## 待确认", ""])
-    lines.append("- 本报告仅基于 PR commits 和 files；业务效果、上线状态和外部依赖需要人工确认。")
     return "\n".join(lines).rstrip() + "\n"
 
 
