@@ -1,4 +1,4 @@
 interface:
   display_name: "Progress Report"
-  short_description: "Explain repository progress in plain language and publish it to Lark."
-  default_prompt: "Generate a plain-language progress report for recent code changes, explain what changed, why it matters, and deliver it to the configured Lark targets."
+  short_description: "Explain code progress with optional Lark delivery."
+  default_prompt: "Use $progress-report to summarize recent code progress in plain language; only create Lark docs or send messages if I ask."

@@ -26,11 +26,20 @@ report:
   max_commits_per_section: 12
   language: zh
 
+output:
+  # local: 只生成报告/可复制消息，不调用飞书 API
+  # message_only: 只发送飞书消息，不创建文档
+  # doc_only: 创建飞书文档并处理权限，不发送消息
+  # doc_and_message: 创建文档并发送带链接的消息
+  # 用户明确要求会覆盖这里的默认值。
+  mode: local
+
 lark:
   # 留空则使用 extends_config.lark
   permissions: {}
 
 delivery:
   # 留空则使用 extends_config.delivery
-  enabled: true
+  # 只在 message_only / doc_and_message 模式下使用；默认不自动投递。
+  enabled: false
   targets: []

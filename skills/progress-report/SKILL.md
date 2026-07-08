@@ -1,17 +1,17 @@
 ---
 name: progress-report
-description: Generate and deliver a plain-language, decision-oriented Lark/Feishu progress update from recent repository changes or a specific GitHub PR. Use when the user asks to 同步进度, 生成进度汇报, 发项目进展到群, 这个 PR 做了什么, summarize recent code progress, publish engineering progress, explain a PR, or describe what changed, why that approach was chosen, what it means for the workflow, and what to do next based on commits, branches, and PRs.
+description: Generate a plain-language, decision-oriented engineering progress update from recent repository changes or a specific GitHub PR, with optional local output, Lark/Feishu message delivery, Lark/Feishu document creation, or both. Use when the user asks to 同步进度, 生成进度汇报, 发项目进展到群, 创建进度文档, 这个 PR 做了什么, summarize recent code progress, publish engineering progress, explain a PR, or describe what changed, why that approach was chosen, what it means for the workflow, and what to do next based on commits, branches, and PRs.
 ---
 
 # Progress Report
 
-生成一份面向团队同步的工程进度报告：从 GitHub 仓库最近代码改动或指定 PR 采集数据，先形成可追溯事实底稿，再改写成平白、面向决策的同步内容，说明“做了什么 / 为什么这样做 / 对工作流有什么意义 / 还有什么待确认 / 下一步是什么”，创建飞书文档并发送到配置的用户或群聊。
+生成一份面向团队同步的工程进度报告：从 GitHub 仓库最近代码改动或指定 PR 采集数据，先形成可追溯事实底稿，再改写成平白、面向决策的同步内容，说明“做了什么 / 为什么这样做 / 对工作流有什么意义 / 还有什么待确认 / 下一步是什么”。根据用户请求或 `output.mode` 决定只本地输出、只发送飞书消息、只创建飞书文档，或创建文档后投递消息。
 
 ## Prerequisites
 
 | 依赖 | 验证命令 |
 |---|---|
-| lark-cli | `lark-cli auth status` |
+| lark-cli | `lark-cli auth status`；仅 `message_only`、`doc_only`、`doc_and_message` 需要 |
 | GitHub token | `gh auth status` 或环境变量 `GITHUB_TOKEN` |
 | python3 + ruamel.yaml | `python3 -c 'import ruamel.yaml'` |
 
@@ -36,6 +36,20 @@ description: Generate and deliver a plain-language, decision-oriented Lark/Feish
 
 当用户说“这个 PR 做了什么”“同步这个 PR 的进度”“根据当前 PR 写汇报”时，优先使用 PR 模式，而不是时间范围模式。
 
+**输出模式**：
+
+- `local`：只生成进度报告或可复制消息，不调用飞书 API；默认模式
+- `message_only`：只发送一段平白的飞书消息，不创建文档
+- `doc_only`：创建飞书文档并处理权限，不发送消息
+- `doc_and_message`：创建飞书文档、处理权限，并发送带文档链接的消息
+
+用户明确要求优先于配置：
+
+- 只说“生成/写/解释/同步进度”，但没有指定“发群、投递、创建文档”时，使用 `local`
+- 说“发到群、同步到群、投递消息”且没有要求文档时，使用 `message_only`
+- 说“创建飞书文档、生成文档”且没有要求发送时，使用 `doc_only`
+- 说“创建文档并发送、发带链接的进度同步”时，使用 `doc_and_message`
+
 ## Execution Flow
 
 ### Step 1: 读取配置
@@ -47,9 +61,12 @@ description: Generate and deliver a plain-language, decision-oriented Lark/Feish
 - `team.members`
 - `team.gitlab_to_github`
 - `lark.permissions`
+- `output.mode`
 - `delivery.targets`
 
 `progress-report/config.yaml` 中显式配置的同名字段覆盖继承配置。
+
+输出模式按以下优先级确定：用户明确要求 > `progress-report/config.yaml` 的 `output.mode` > `local`。不要因为 `delivery.targets` 存在就自动发送消息，也不要因为配置了 `lark.permissions` 就自动创建文档。
 
 ### Step 2: 采集代码进度
 
@@ -85,7 +102,12 @@ python3 skills/progress-report/scripts/collect_progress.py \
 
 ### Step 3: Agent 叙事改写
 
-读取 `/tmp/progress_report.md` 和 `/tmp/progress_report_raw.json`，把脚本生成的事实底稿改写成团队能直接理解的进度同步。默认结构：
+读取 `/tmp/progress_report.md` 和 `/tmp/progress_report_raw.json`，把脚本生成的事实底稿改写成团队能直接理解的进度同步。生成两类内容：
+
+- 完整报告：适合本地输出或飞书文档，保留必要证据
+- 简短消息：适合直接发群或回复用户，先讲结论和意义，少放技术细节
+
+完整报告默认结构：
 
 ```markdown
 # 项目进度同步 (<scope>)
@@ -121,9 +143,18 @@ python3 skills/progress-report/scripts/collect_progress.py \
 - 不要把群消息写成 changelog、commit digest 或测试日志；SHA、文件清单、OQ 编号只作为证据或链接出现
 - 如果代码事实不足以支撑“为什么”和“意义”，保留为待确认或请用户补上下文，不要编造
 
-### Step 4: 创建飞书文档
+### Step 4: 本地输出
 
-复用 `lark-doc-deliver` 的流程。把报告复制到当前工作目录，然后创建文档：
+当模式为 `local`：
+
+- 不调用 `lark-cli docs`、`lark-cli drive` 或 `lark-cli im`
+- 直接回复用户完整报告，或在用户要求文件时写入 `progress_report.md`
+- 如果用户要“可发群版本”，同时给出简短消息正文
+- 最终回复包含统计范围、数据来源和“未创建飞书文档 / 未发送消息”
+
+### Step 5: 创建飞书文档
+
+仅当模式为 `doc_only` 或 `doc_and_message` 时执行。复用 `lark-doc-deliver` 的流程。把报告复制到当前工作目录，然后创建文档：
 
 ```bash
 cp /tmp/progress_report.md ./progress_report.md
@@ -138,11 +169,11 @@ lark-cli docs +create \
 - `doc_url`: `.data.doc_url`
 - `document_id`: `.data.doc_id`
 
-### Step 5: 自动权限转移
+### Step 6: 自动权限转移
 
-创建文档后必须立刻按 `lark.permissions` 配置执行权限转移。`progress-report/config.yaml` 默认继承 `weekly-report/config.yaml`，因此应直接使用继承后的 `doc_owner_open_ids` 和 `bot_open_id`。
+仅当已创建飞书文档时执行。创建文档后必须立刻按 `lark.permissions` 配置执行权限转移。`progress-report/config.yaml` 默认继承 `weekly-report/config.yaml`，因此应直接使用继承后的 `doc_owner_open_ids` 和 `bot_open_id`。
 
-如果 `doc_owner_open_ids[0]` 或 `bot_open_id` 为空，停止投递并报告配置缺失；不要留下只有 bot 可见的文档。
+如果 `doc_owner_open_ids[0]` 或 `bot_open_id` 为空，停止后续投递并报告配置缺失；不要发送只有 bot 可见文档的链接。
 
 `transfer_owner` 和 `permission.members.create` 是 high-risk-write 操作，必须带 `--yes`，因为 owner 和 bot open_id 已由配置显式登记。
 
@@ -176,9 +207,29 @@ lark-cli drive permission.members create \
 
 权限操作失败时记录错误；如果 owner transfer 失败，不要发送群消息，避免投递不可访问的文档。
 
-### Step 6: 消息投递
+### Step 7: 消息投递
 
-构造群消息，包含摘要和文档链接：
+仅当模式为 `message_only` 或 `doc_and_message` 时执行。发送前检查 `delivery.targets`；如果没有目标，停止发送并把消息正文返回给用户。
+
+`message_only` 的消息不包含文档链接：
+
+```markdown
+**项目进度同步 (<scope>)**
+
+同步一下 <项目/模块> 的关键进展。
+
+我们现在完成了 <用平白语言描述的变化>。
+
+这次选择 <方案>，主要是因为 <原因/风险/取舍>。
+
+这对工作流的意义是：<影响>。
+
+目前仍需确认：<不确定项>。
+
+下一步：<行动项>。
+```
+
+`doc_and_message` 的消息包含文档链接：
 
 ```markdown
 **项目进度同步 (<scope>)**
@@ -212,8 +263,9 @@ lark-cli im +messages-send --user-id "<open_id>" --markdown "$(cat progress_mess
 最终回复用户：
 
 ```text
-进度文档: <doc_url>
-已投递: <target.name>, ...
+输出模式: <local | message_only | doc_only | doc_and_message>
+进度文档: <doc_url | 未创建>
+已投递: <target.name>, ... | 未投递
 统计范围: <since> ~ <until>
 数据来源: <repo list>
 ```
@@ -227,6 +279,7 @@ lark-cli im +messages-send --user-id "<open_id>" --markdown "$(cat progress_mess
 3. 用户提到具体 PR 时必须使用 PR 模式；不要用最近 N 天近似替代。
 4. 不要把未合并分支或打开 PR 写成“已上线”或“已合并”。
 5. 0 数据时不要编造，输出“该范围内未匹配到团队成员代码改动”，并建议检查仓库配置、GitHub 用户映射或时间范围。
-6. 飞书文档创建后必须自动 transfer owner，并重新授权 bot；权限命令必须带 `--yes`。
-7. 飞书文档和消息投递使用 bot 身份。
-8. 群消息面向团队协作，不面向代码审计；把可追溯证据放进文档，不要把第一屏写成提交清单。
+6. 默认不要创建飞书文档或发送消息；只有用户明确要求或 `output.mode` 指定时才执行外部写入。
+7. 飞书文档创建后必须自动 transfer owner，并重新授权 bot；权限命令必须带 `--yes`。
+8. 飞书文档和消息投递使用 bot 身份。
+9. 群消息面向团队协作，不面向代码审计；把可追溯证据放进文档或本地报告，不要把第一屏写成提交清单。
