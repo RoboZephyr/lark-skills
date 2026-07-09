@@ -130,6 +130,14 @@ OAuth user 身份创建文档到你的个人云空间。一次 `lark-cli auth lo
 
 定时任务通过 `launchd/run-weekly-report.sh` 执行：先尝试 Claude Code；如果 Claude 订阅、组织权限或其他错误导致非 0 退出，会自动 fallback 到 `codex exec` 继续执行 `/weekly-report 上周` 等价流程。
 
+如果 launchd 环境拿不到 GitHub token，可复制本地环境文件：
+
+```bash
+cp launchd/weekly-report.env.example launchd/weekly-report.env
+```
+
+然后按需设置 `WEEKLY_REPORT_GITHUB_USER`、`GITHUB_TOKEN`、`GH_TOKEN` 或二进制路径。`launchd/weekly-report.env` 会被 `.gitignore` 忽略，不要提交真实 token。
+
 ### 安装定时任务
 
 ```bash

@@ -10,6 +10,10 @@ __pycache__/
 **/scenarios/*.yaml
 !**/scenarios/example.yaml
 
+# launchd 本地环境变量可能包含 token，只提交 example
+launchd/*.env
+!launchd/*.env.example
+
 # 运行时生成的临时文件
 weekly_*.md
 doc_summary_*.md
