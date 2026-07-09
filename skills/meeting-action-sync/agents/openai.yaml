@@ -1,0 +1,4 @@
+interface:
+  display_name: "Meeting Action Sync"
+  short_description: "从会议纪要提取行动项、开放问题和决策并同步项目文档"
+  default_prompt: "Use $meeting-action-sync to turn meeting notes into calibrated action items, open questions, decisions, and project follow-up."

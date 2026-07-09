@@ -13,6 +13,7 @@
 - `skills/doc-summary/SKILL.md` — 飞书文档搜索 + 汇总（调用 lark-doc-deliver 完成投递）
 - `skills/weekly-report/SKILL.md` — 团队周报生成
 - `skills/progress-report/SKILL.md` — 代码进度同步：按最近代码改动、分支和 PR 生成进度文档并投递
+- `skills/meeting-action-sync/SKILL.md` — 会议行动项同步：从会议纪要提取行动项、开放问题、决策和负责人，校准后同步飞书文档、项目文档和可选群消息
 
 执行任务时，读取对应 SKILL.md 并按步骤执行。
 

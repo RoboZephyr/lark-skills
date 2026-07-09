@@ -1,0 +1,21 @@
+# Copy to config.yaml and adjust for your workspace.
+
+defaults:
+  project_root: "/path/to/project"
+  action_items_path: "docs/meeting-followups/action-items.md"
+  open_questions_path: "docs/meeting-followups/open-questions.md"
+  decisions_path: "docs/meeting-followups/decisions.md"
+  index_path: "docs/meeting-followups/index.md"
+
+lark:
+  # Existing doc token/URL to update, or leave empty to create a new doc.
+  doc: ""
+  # Optional chat for final sync. Prefer resolving by name at runtime.
+  chat_name: ""
+  chat_id: ""
+  send_as: "bot"
+
+report:
+  default_title_suffix: "会议纪要"
+  require_user_review_before_project_write: true
+  require_confirmation_before_group_send: true
