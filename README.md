@@ -15,6 +15,7 @@
 | `doc-summary`       | 按场景配置（关键词 + 团队成员）搜飞书文档，汇总后调 `lark-doc-deliver` 发布 |
 | `weekly-report`     | 从 GitHub（可选 GitLab）拉 commit，subagent 并行生成每人摘要，合并为周报 |
 | `progress-report`   | 从最近代码改动、分支和 PR 生成项目进度同步，创建飞书文档并投递到群 |
+| `meeting-action-sync` | 从会议纪要、妙记或本地 Markdown 提取行动项、开放问题和决策，经校准后同步到文档或项目 |
 
 如果只是想试跑一遍，推荐从 `lark-doc-personal` 开始 —— 只需要一个飞书个人版账号 + OAuth 一次。
 
@@ -126,6 +127,18 @@ OAuth user 身份创建文档到你的个人云空间。一次 `lark-cli auth lo
 
 ---
 
+### meeting-action-sync（会议后续同步）
+
+从飞书妙记、会议纪要、文档或本地 Markdown 中提取行动项、负责人、开放问题和决策。先让用户校准事实，再按需同步到飞书文档、项目文档、backlog/issue 文件或群消息。
+
+```
+/meeting-action-sync <会议纪要 URL 或本地 markdown>
+```
+
+详见 [`skills/meeting-action-sync/SKILL.md`](skills/meeting-action-sync/SKILL.md)。
+
+---
+
 ## 定时任务（launchd）
 
 定时任务通过 `launchd/run-weekly-report.sh` 执行：先尝试 Claude Code；如果 Claude 订阅、组织权限或其他错误导致非 0 退出，会自动 fallback 到 `codex exec` 继续执行 `/weekly-report 上周` 等价流程。
@@ -229,6 +242,9 @@ lark-skills/
 ├── .claude/commands/                  # 项目级入口（开发用）
 │   ├── doc-summary.md
 │   ├── lark-doc-deliver.md
+│   ├── lark-doc-personal.md
+│   ├── meeting-action-sync.md
+│   ├── progress-report.md
 │   └── weekly-report.md
 ├── skills/
 │   ├── doc-summary/                   # 场景 Skill：文档汇总框架
@@ -239,8 +255,16 @@ lark-skills/
 │   ├── lark-doc-deliver/              # 通用能力 Skill：飞书文档投递
 │   │   ├── SKILL.md
 │   │   └── config.example.yaml
+│   ├── lark-doc-personal/             # 通用能力 Skill：个人云空间文档创建
+│   │   ├── SKILL.md
+│   │   └── config.example.yaml
+│   ├── meeting-action-sync/           # 场景 Skill：会议行动项同步
+│   │   ├── SKILL.md
+│   │   ├── agents/
+│   │   └── config.example.yaml
 │   ├── progress-report/               # 场景 Skill：项目进度同步
 │   │   ├── SKILL.md
+│   │   ├── agents/
 │   │   ├── config.example.yaml
 │   │   └── scripts/
 │   └── weekly-report/                 # 场景 Skill：团队周报
@@ -256,7 +280,7 @@ lark-skills/
 └── README.md
 ```
 
-`skills/doc-summary/scenarios/` 缺一个 `lark-doc-personal/` 是因为它没有场景。
+`config.yaml` 是本地真实配置，已被 `.gitignore` 忽略；提交到仓库的是 `config.example.yaml` 和可复用执行说明。
 
 ---
 
@@ -271,6 +295,8 @@ Included:
 - **`lark-doc-deliver`** — bot creates docx, transfers ownership, sends chat message (enterprise app)
 - **`doc-summary`** — search Lark docs by keywords + team open_ids, summarize, deliver
 - **`weekly-report`** — pull commits from GitHub/GitLab, parallel per-member summarization, team report
+- **`progress-report`** — turn recent commits, branches, or PRs into a decision-oriented progress update
+- **`meeting-action-sync`** — extract calibrated action items, owners, open questions, and decisions from meeting notes
 
 Install:
 ```bash

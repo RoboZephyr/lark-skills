@@ -22,7 +22,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ---------- 可安装的 Skills ----------
-ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report progress-report)
+ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report progress-report meeting-action-sync)
 
 usage() {
     echo -e "${BOLD}Lark Skills Installer${NC}"

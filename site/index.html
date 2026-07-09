@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lark Skills — 把多步 lark-cli 调用打包成 Agent 的 /command</title>
-<meta name="description" content="Lark Skills: pack multi-step lark-cli workflows into Claude Code / Codex Skills. Four ready-to-install /commands for Feishu docs, weekly reports, and document scanning. MIT, local-first, no SaaS.">
+<meta name="description" content="Lark Skills: pack multi-step lark-cli workflows into Claude Code / Codex Skills. Six ready-to-install /commands for Feishu docs, reports, document scanning, and meeting follow-up. MIT, local-first, no SaaS.">
 <meta property="og:title" content="Lark Skills — Feishu workflows your AI agent can just run">
-<meta property="og:description" content="Four installable Skills that wrap lark-cli into /weekly-report, /lark-doc-personal, /lark-doc-deliver, /doc-summary.">
+<meta property="og:description" content="Six installable Skills that wrap lark-cli into /weekly-report, /progress-report, /meeting-action-sync, and Feishu doc workflows.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://lark-skills.robozephyr.com">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -457,7 +457,7 @@
 
     <div>
       <h1>LARK<span class="dot">·</span><span class="skills">SKILLS</span></h1>
-      <p class="lede">把多步 <code>lark-cli</code> 调用打包成 Claude Code 和 Codex 可以直接 <code>/run</code> 的 Skill。<strong>一次 git clone，四个 slash command，任何项目目录都能用。</strong></p>
+      <p class="lede">把多步 <code>lark-cli</code> 调用打包成 Claude Code 和 Codex 可以直接 <code>/run</code> 的 Skill。<strong>一次 git clone，六个 slash command，任何项目目录都能用。</strong></p>
 
       <div class="install" role="region" aria-label="install command">
         <span class="line"><span class="prompt">$</span><span class="cmd">git clone https://github.com/RoboZephyr/lark-skills</span></span>
@@ -493,6 +493,8 @@
    <span class="m">│</span>    <span class="t">/lark-doc-deliver</span>                <span class="m">│</span>    <span class="m">←</span> <span class="m">your agent</span>
    <span class="m">│</span>    <span class="t">/doc-summary</span>                     <span class="m">│</span>    <span class="m">  just runs</span>
    <span class="m">│</span>    <span class="t">/weekly-report</span>                   <span class="m">│</span>    <span class="m">  these</span>
+   <span class="m">│</span>    <span class="t">/progress-report</span>                 <span class="m">│</span>
+   <span class="m">│</span>    <span class="t">/meeting-action-sync</span>             <span class="m">│</span>
    <span class="m">└─────────────────────────────────────┘</span>
               <span class="m">Claude Code  ·  Codex</span>
 </pre>
@@ -501,7 +503,7 @@
   </header>
 
   <section class="section">
-    <p class="section-label">the four skills</p>
+    <p class="section-label">the six skills</p>
     <h2 class="section-title">不是一个调用，是一组工作流 — 都装好了。</h2>
 
     <article class="skill">
@@ -544,6 +546,28 @@
         <p class="skill-desc">从 GitHub（可选 GitLab）拉 commit 数据，subagent 并行生成每人摘要，主 agent 合并为周报，自动创建飞书文档并发群通知 —— 避免长上下文溢出。</p>
         <div class="skill-tags">
           <span>git data</span><span class="sep">·</span><span>parallel subagent</span><span class="sep">·</span><span>auto deliver</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="skill">
+      <div class="skill-slash"><span class="num">SK · 05</span>/progress-report</div>
+      <div>
+        <h3 class="skill-name">进度同步 · 从改动到决策简报</h3>
+        <p class="skill-desc">从最近代码改动、分支和 PR 状态整理“已完成 / 进行中 / 接下来 / 待确认”。默认可只本地输出，也可按需创建飞书文档或投递群消息。</p>
+        <div class="skill-tags">
+          <span>git progress</span><span class="sep">·</span><span>PR summary</span><span class="sep">·</span><span>optional delivery</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="skill">
+      <div class="skill-slash"><span class="num">SK · 06</span>/meeting-action-sync</div>
+      <div>
+        <h3 class="skill-name">会议后续 · 从纪要到行动项</h3>
+        <p class="skill-desc">读取妙记、飞书文档或本地 Markdown，提取行动项、负责人、开放问题和决策；经用户校准后，同步到飞书文档、项目文档或可选群消息。</p>
+        <div class="skill-tags">
+          <span>minutes</span><span class="sep">·</span><span>action items</span><span class="sep">·</span><span>project follow-up</span>
         </div>
       </div>
     </article>
