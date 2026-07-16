@@ -28,9 +28,11 @@ cd ~/workspace/lark-skills
 ```
 
 安装做了三件事：
-1. 把每个 Skill 的入口写到 `~/.claude/commands/` 或 `~/.codex/instructions/`
+1. 把每个 Skill 的入口写到 Claude Code 的 `~/.claude/commands/`，或 Codex 的 `~/.agents/skills/`
 2. 复制 `config.example.yaml` → `config.yaml`（**你需要打开填入真实值**）
-3. 完成后任意目录下 `/lark-doc-personal`、`/weekly-report` 等命令都能用
+3. 完成后可在任意项目中使用 Claude Code 的 `/weekly-report`，或 Codex 的 `$weekly-report`
+
+Codex 入口会引用当前 clone 中的 Skill、脚本和配置；请保留该目录。移动 clone 后重新运行 `./install.sh --codex` 即可更新入口。
 
 ```bash
 ./install.sh lark-doc-personal     # 只装一个
@@ -101,10 +103,12 @@ OAuth user 身份创建文档到你的个人云空间。一次 `lark-cli auth lo
 
 从 GitHub（可选 GitLab）拉指定团队成员在指定时间段的 commit + PR/MR，subagent 并行各人摘要，主 agent 合并为周报，可选关联 OKR。
 
-```
-/weekly-report                # 默认最近 7 天
+```text
+# Claude Code
 /weekly-report 上周
-/weekly-report 最近 14 天
+
+# Codex
+$weekly-report 上周
 ```
 
 可通过 `launchd/com.lark-skills.weekly-report.plist` 定时执行（见下方）。
@@ -117,10 +121,12 @@ OAuth user 身份创建文档到你的个人云空间。一次 `lark-cli auth lo
 
 从 GitHub 仓库的最近代码改动、所有分支 commit 和 PR 状态整理项目进度，输出“已完成 / 进行中 / 接下来 / 待确认”，创建飞书文档并投递。
 
-```
-/progress-report
-/progress-report 今天
+```text
+# Claude Code
 /progress-report 最近 3 天
+
+# Codex
+$progress-report 最近 3 天
 ```
 
 默认继承 `weekly-report` 的仓库、成员和飞书投递配置。详见 [`skills/progress-report/SKILL.md`](skills/progress-report/SKILL.md)。

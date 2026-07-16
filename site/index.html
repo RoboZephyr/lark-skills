@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Lark Skills — 把多步 lark-cli 调用打包成 Agent 的 /command</title>
-<meta name="description" content="Lark Skills: pack multi-step lark-cli workflows into Claude Code / Codex Skills. Six ready-to-install /commands for Feishu docs, reports, document scanning, and meeting follow-up. MIT, local-first, no SaaS.">
+<title>Lark Skills — 把多步 lark-cli 调用打包成 Agent Skill</title>
+<meta name="description" content="Lark Skills: pack multi-step lark-cli workflows into six installable Claude Code and Codex Skills for Feishu docs, reports, document scanning, and meeting follow-up. MIT, local-first, no SaaS.">
 <meta property="og:title" content="Lark Skills — Feishu workflows your AI agent can just run">
-<meta property="og:description" content="Six installable Skills that wrap lark-cli into /weekly-report, /progress-report, /meeting-action-sync, and Feishu doc workflows.">
+<meta property="og:description" content="Six installable Skills that wrap lark-cli into weekly reports, progress reports, meeting follow-up, and Feishu document workflows.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://lark-skills.robozephyr.com">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -457,12 +457,12 @@
 
     <div>
       <h1>LARK<span class="dot">·</span><span class="skills">SKILLS</span></h1>
-      <p class="lede">把多步 <code>lark-cli</code> 调用打包成 Claude Code 和 Codex 可以直接 <code>/run</code> 的 Skill。<strong>一次 git clone，六个 slash command，任何项目目录都能用。</strong></p>
+      <p class="lede">把多步 <code>lark-cli</code> 调用打包成 Claude Code 和 Codex 可以直接调用的 Skill。<strong>一次 git clone，六个工作流，任何项目目录都能用。</strong></p>
 
       <div class="install" role="region" aria-label="install command">
         <span class="line"><span class="prompt">$</span><span class="cmd">git clone https://github.com/RoboZephyr/lark-skills</span></span>
         <span class="line"><span class="prompt">$</span><span class="cmd">cd lark-skills &amp;&amp; ./install.sh</span></span>
-        <span class="comment"># 自动检测 Claude Code / Codex 并写入 /commands</span>
+        <span class="comment"># 自动检测 Claude Code / Codex 并安装对应入口</span>
       </div>
 
       <div class="badges">
@@ -496,7 +496,7 @@
    <span class="m">│</span>    <span class="t">/progress-report</span>                 <span class="m">│</span>
    <span class="m">│</span>    <span class="t">/meeting-action-sync</span>             <span class="m">│</span>
    <span class="m">└─────────────────────────────────────┘</span>
-              <span class="m">Claude Code  ·  Codex</span>
+              <span class="m">Claude Code /skill  ·  Codex $skill</span>
 </pre>
     </div>
 
@@ -589,8 +589,8 @@
 
       <div class="anatomy-text">
         <p>每个 Skill = 一份 <code>SKILL.md</code> + 一份 <code>config.yaml</code>。前者是给 Agent 看的执行说明（什么时候触发、按什么顺序调 <code>lark-cli</code>、出什么）；后者放你自己的飞书 <code>open_id</code>、群 <code>chat_id</code>、关键词清单。</p>
-        <p>Agent 拿到任务 → 读 SKILL.md → 按步骤调 <code>lark-cli</code> → 把 config.yaml 的值塞进去 → 出文档。<strong>没有 SaaS，没有要传到第三方服务器的密钥，没有 wrapper 层。</strong></p>
-        <p><code>./install.sh</code> 把每个 Skill 的入口写到 <code>~/.claude/commands/</code> 或 <code>~/.codex/instructions/</code>，之后 <code>/weekly-report</code> 在任何项目目录都能跑 —— 因为它本来就不依赖项目，它依赖你的飞书账号。</p>
+        <p>Agent 拿到任务 → 读 SKILL.md → 按步骤调 <code>lark-cli</code> → 把 config.yaml 的值塞进去 → 出文档。<strong>没有 SaaS，密钥不会传到第三方服务器。</strong></p>
+        <p><code>./install.sh</code> 把入口写到 Claude Code 的 <code>~/.claude/commands/</code>，或 Codex 的 <code>~/.agents/skills/</code>。之后可在任意项目目录使用 Claude Code 的 <code>/weekly-report</code>，或 Codex 的 <code>$weekly-report</code>。</p>
       </div>
     </div>
   </section>
@@ -605,7 +605,7 @@
       最干净的方案是把"我已经踩过的坑"<em>编码成 Agent 能稳定执行的一份说明书</em> —— 不是教 Agent 现学。
     </div>
 
-    <p>这就是 Skill 的形态：一份 Agent-readable 的步骤 + 一份你的真实配置。装好之后，<code>/weekly-report</code> 在你机器上任何项目目录都能直接跑。</p>
+    <p>这就是 Skill 的形态：一份 Agent-readable 的步骤 + 一份你的真实配置。装好之后，可在任何项目目录使用 Claude Code 的 <code>/weekly-report</code>，或 Codex 的 <code>$weekly-report</code>。</p>
   </section>
 
   <footer>
