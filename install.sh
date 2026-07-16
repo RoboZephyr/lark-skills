@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ============================================================
 # Lark Skills — Installer
-# 支持 Claude Code (~/.claude/commands/) 和 Codex (~/.codex/instructions/)
+# 支持 Claude Code (~/.claude/commands/) 和 Codex (~/.agents/skills/)
 # ============================================================
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -20,6 +20,8 @@ info()  { echo -e "${CYAN}[INFO]${NC}  $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
+
+MANAGED_MARKER='<!-- managed-by: RoboZephyr/lark-skills -->'
 
 # ---------- 可安装的 Skills ----------
 ALL_SKILLS=(lark-doc-personal lark-doc-deliver doc-summary weekly-report progress-report meeting-action-sync)
@@ -117,15 +119,22 @@ install_skill() {
     if [ $INSTALL_CLAUDE -eq 1 ]; then
         local project_commands="$REPO_DIR/.claude/commands"
         local project_command="$project_commands/$skill.md"
-        mkdir -p "$project_commands"
+        if ! mkdir -p "$project_commands"; then
+            error "Could not create project commands directory: $project_commands"
+            return 1
+        fi
         if [ -f "$project_command" ]; then
             ok "Project:     .claude/commands/$skill.md (kept existing)"
         else
-            cat > "$project_command" << EOF
+            if ! cat > "$project_command" << EOF
 Read and follow the instructions in \`skills/$skill/SKILL.md\`.
 
 \$ARGUMENTS
 EOF
+            then
+                error "Could not write project command: $project_command"
+                return 1
+            fi
             ok "Project:     .claude/commands/$skill.md"
         fi
     fi
@@ -133,28 +142,131 @@ EOF
     # 1. Claude Code: 写入 ~/.claude/commands/
     if [ $INSTALL_CLAUDE -eq 1 ]; then
         local claude_commands="$HOME/.claude/commands"
-        mkdir -p "$claude_commands"
-        cat > "$claude_commands/$skill.md" << EOF
-First, change the working directory to \`$REPO_DIR\`, then read and follow the instructions in \`skills/$skill/SKILL.md\`.
-
-\$ARGUMENTS
-EOF
+        local claude_command="$claude_commands/$skill.md"
+        if [ -L "$claude_command" ]; then
+            error "Claude Code command path is a symlink not managed by this installer: $claude_command"
+            return 1
+        elif [ -f "$claude_command" ] && \
+           ! grep -Fq "$MANAGED_MARKER" "$claude_command" && \
+           ! { grep -Fq 'First, change the working directory to' "$claude_command" && \
+               grep -Fq "skills/$skill/SKILL.md" "$claude_command"; }; then
+            error "Claude Code command already exists and is not managed by this installer: $claude_command"
+            return 1
+        fi
+        if ! mkdir -p "$claude_commands"; then
+            error "Could not create Claude Code commands directory: $claude_commands"
+            return 1
+        fi
+        if ! {
+            printf '%s\n\n' "$MANAGED_MARKER"
+            printf 'First, change the working directory to `%s`, then read and follow the instructions in `skills/%s/SKILL.md`.\n\n' \
+                "$REPO_DIR" "$skill"
+            printf '%s\n' '$ARGUMENTS'
+        } > "$claude_command"; then
+            error "Could not write Claude Code command: $claude_command"
+            return 1
+        fi
         ok "Claude Code: ~/.claude/commands/$skill.md"
     fi
 
-    # 2. Codex: 写入 ~/.codex/instructions/
+    # 2. Codex: 写入全局 Skill launcher。
+    #
+    # Codex 从 ~/.agents/skills/<name>/SKILL.md 发现用户级 Skills。这里不直接
+    # 链接源目录，因为源 SKILL.md 中的命令以本仓库根目录为相对路径；launcher
+    # 会保留用户调用时的项目上下文，同时明确这些运行时路径应从 REPO_DIR 解析。
     if [ $INSTALL_CODEX -eq 1 ]; then
-        local codex_instructions="$HOME/.codex/instructions"
-        mkdir -p "$codex_instructions"
-        cat > "$codex_instructions/$skill.md" << EOF
-When the user asks to run "$skill", change the working directory to \`$REPO_DIR\`, then read and follow the instructions in \`skills/$skill/SKILL.md\`.
-EOF
-        ok "Codex:       ~/.codex/instructions/$skill.md"
+        local codex_skills="$HOME/.agents/skills"
+        local codex_skill_dir="$codex_skills/$skill"
+        local codex_skill_file="$codex_skill_dir/SKILL.md"
+        local description_line=""
+
+        description_line=$(sed -n '/^---$/,/^---$/ { /^description:/p; }' "$skill_dir/SKILL.md" | head -1)
+        if [ -z "$description_line" ]; then
+            error "Missing description in $skill_dir/SKILL.md"
+            return 1
+        fi
+
+        if [ -L "$codex_skill_dir" ]; then
+            error "Codex Skill path is a symlink not managed by this installer: $codex_skill_dir"
+            return 1
+        elif [ -e "$codex_skill_dir" ]; then
+            if [ -f "$codex_skill_file" ] && grep -Fq "$MANAGED_MARKER" "$codex_skill_file"; then
+                local unexpected_entry=""
+                unexpected_entry=$(find "$codex_skill_dir" -mindepth 1 -maxdepth 1 \
+                    ! -name 'SKILL.md' ! -name 'agents' -print -quit)
+                if [ -n "$unexpected_entry" ] || \
+                   { { [ -e "$codex_skill_dir/agents" ] || [ -L "$codex_skill_dir/agents" ]; } && \
+                     [ ! -L "$codex_skill_dir/agents" ]; }; then
+                    error "Managed Codex Skill contains unexpected files: $codex_skill_dir"
+                    return 1
+                fi
+                if [ -L "$codex_skill_dir/agents" ]; then
+                    rm "$codex_skill_dir/agents" || return 1
+                fi
+                rm "$codex_skill_file" || return 1
+                if ! rmdir "$codex_skill_dir" 2>/dev/null; then
+                    error "Managed Codex Skill contains unexpected files: $codex_skill_dir"
+                    return 1
+                fi
+            else
+                error "Codex Skill already exists and is not managed by this installer: $codex_skill_dir"
+                return 1
+            fi
+        fi
+
+        if ! mkdir -p "$codex_skill_dir"; then
+            error "Could not create Codex Skill directory: $codex_skill_dir"
+            return 1
+        fi
+        if ! {
+            printf '%s\n' '---'
+            printf 'name: %s\n' "$skill"
+            printf '%s\n' "$description_line"
+            printf '%s\n\n' '---'
+            printf '%s\n\n' "$MANAGED_MARKER"
+            printf '%s\n\n' '# Lark Skills launcher'
+            printf 'Source skill: `%s`\n\n' "$skill_dir/SKILL.md"
+            printf 'Runtime root: `%s`\n\n' "$REPO_DIR"
+            printf '%s\n' '1. Preserve the working directory where the user invoked Codex as the task project context.'
+            printf '%s\n' '2. Read the source `SKILL.md` above completely before taking task actions, then follow it.'
+            printf '%s\n' '3. Resolve paths beginning with `skills/` and run Lark Skills helper commands from the runtime root above.'
+            printf '%s\n' '4. Keep repository-specific inspection and edits scoped to the task project unless the user names a different project.'
+        } > "$codex_skill_file"; then
+            error "Could not write Codex Skill launcher: $codex_skill_file"
+            return 1
+        fi
+
+        if [ -d "$skill_dir/agents" ]; then
+            if ! ln -s "$skill_dir/agents" "$codex_skill_dir/agents"; then
+                error "Could not link Codex Skill metadata: $skill_dir/agents"
+                return 1
+            fi
+        fi
+
+        # Clean up the legacy entry created by older versions of this installer.
+        local legacy_instruction="$HOME/.codex/instructions/$skill.md"
+        if [ -f "$legacy_instruction" ]; then
+            if grep -Fq "When the user asks to run \"$skill\"" "$legacy_instruction" && \
+               grep -Fq "skills/$skill/SKILL.md" "$legacy_instruction"; then
+                if rm "$legacy_instruction"; then
+                    ok "Migrated:    ~/.codex/instructions/$skill.md"
+                else
+                    warn "Could not remove legacy file: $legacy_instruction"
+                fi
+            else
+                warn "Kept unrelated legacy file: $legacy_instruction"
+            fi
+        fi
+
+        ok "Codex:       ~/.agents/skills/$skill/SKILL.md"
     fi
 
     # 3. 初始化配置文件
     if [ -f "$skill_dir/config.example.yaml" ] && [ ! -f "$skill_dir/config.yaml" ]; then
-        cp "$skill_dir/config.example.yaml" "$skill_dir/config.yaml"
+        if ! cp "$skill_dir/config.example.yaml" "$skill_dir/config.yaml"; then
+            error "Could not create $skill_dir/config.yaml"
+            return 1
+        fi
         warn "Created $skill_dir/config.yaml — please edit with your real values"
     elif [ -f "$skill_dir/config.yaml" ]; then
         ok "Config already exists: $skill_dir/config.yaml"
@@ -254,13 +366,21 @@ main() {
     echo ""
 
     local installed=0
+    local failed=0
     for skill in "${skills_to_install[@]}"; do
         info "--- $skill ---"
         if install_skill "$skill"; then
-            ((installed++))
+            installed=$((installed + 1))
+        else
+            failed=$((failed + 1))
         fi
         echo ""
     done
+
+    if [ $failed -gt 0 ]; then
+        error "Installed $installed skill(s), but failed to install $failed skill(s)."
+        exit 1
+    fi
 
     # 完成
     echo -e "${BOLD}${GREEN}Done!${NC} Installed $installed skill(s) for $targets."
@@ -278,14 +398,17 @@ main() {
         for skill in "${skills_to_install[@]}"; do
             echo "     /$skill"
         done
-        ((step++))
+        step=$((step + 1))
     fi
     if [ $INSTALL_CODEX -eq 1 ]; then
-        echo "  $step. Codex — cd to this repo and run:"
-        echo "     codex"
-        echo "     Then ask it to run a skill, e.g. \"run lark-doc-deliver\""
+        echo "  $step. Codex — open any project and mention a Skill:"
+        for skill in "${skills_to_install[@]}"; do
+            echo "     \$$skill"
+        done
+        echo "     If a new Skill does not appear, restart Codex."
     fi
     echo ""
+
 }
 
 main "$@"
