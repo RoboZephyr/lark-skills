@@ -55,6 +55,10 @@ skills/progress-report/         # 项目进度同步
 ├── config.yaml
 ├── config.example.yaml
 └── scripts/
+
+skills/okr-writing/             # OKR 制定 / 评审 / 润色并写入飞书 OKR（方法论 + 流程型，无 config）
+├── SKILL.md
+└── references/                 # 官方方法论摘录（Google re:Work / WhatMatters，带来源）
 ```
 
 对应入口：`.claude/commands/<skill-name>.md` — 轻量 wrapper，引用 SKILL.md。
