@@ -14,7 +14,7 @@
 | `lark-doc-deliver`  | 用 bot 创建 docx，转所有权给指定员工，发消息到群聊。**企业版多人协作场景。** |
 | `doc-summary`       | 按场景配置（关键词 + 团队成员）搜飞书文档，汇总后调 `lark-doc-deliver` 发布 |
 | `weekly-report`     | 从 GitHub（可选 GitLab）拉 commit，subagent 并行生成每人摘要，合并为周报 |
-| `progress-report`   | 从最近代码改动、分支和 PR 生成项目进度同步，创建飞书文档并投递到群 |
+| `progress-report`   | 从最近代码改动、分支和 PR 生成项目进度同步，创建飞书文档并投递到群；也可由 launchd 驱动为每日 21:00 的无人值守团队日报 |
 | `meeting-action-sync` | 从会议纪要、妙记或本地 Markdown 提取行动项、开放问题和决策，经校准后同步到文档或项目 |
 
 如果只是想试跑一遍，推荐从 `lark-doc-personal` 开始 —— 只需要一个飞书个人版账号 + OAuth 一次。
@@ -117,9 +117,11 @@ $weekly-report 上周
 
 ---
 
-### progress-report（项目进度同步）
+### progress-report（项目进度同步 + 定时团队日报）
 
-从 GitHub 仓库的最近代码改动、所有分支 commit 和 PR 状态整理项目进度，输出“已完成 / 进行中 / 接下来 / 待确认”，创建飞书文档并投递。
+两种用法：
+
+**按需进度同步**：从 GitHub 仓库的最近代码改动、所有分支 commit 和 PR 状态整理项目进度，输出“已完成 / 进行中 / 接下来 / 待确认”，创建飞书文档并投递。
 
 ```text
 # Claude Code
@@ -128,6 +130,8 @@ $weekly-report 上周
 # Codex
 $progress-report 最近 3 天
 ```
+
+**无人值守团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`，以「过去 24 小时」滚动窗口（21:00 → 次日 21:00，天与天无缝衔接不漏数据）生成团队日报，私发给 `delivery.targets` 配置的负责人，并插入到 `lark.daily_log_doc` 留档文档最前（最新在上）。
 
 默认继承 `weekly-report` 的仓库、成员和飞书投递配置。详见 [`skills/progress-report/SKILL.md`](skills/progress-report/SKILL.md)。
 
@@ -160,7 +164,7 @@ cp launchd/weekly-report.env.example launchd/weekly-report.env
 ### 安装定时任务
 
 ```bash
-# 复制 plist 到 LaunchAgents
+# 复制 plist 到 LaunchAgents（每日团队日报同理，替换为 com.lark-skills.daily-team-report.plist）
 cp launchd/com.lark-skills.weekly-report.plist ~/Library/LaunchAgents/
 
 # 加载（启用）

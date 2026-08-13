@@ -1,11 +1,13 @@
 ---
 name: progress-report
-description: Generate a plain-language, decision-oriented engineering progress update from recent repository changes or a specific GitHub PR, with optional local output, Lark/Feishu message delivery, Lark/Feishu document creation, or both. Use when the user asks to 同步进度, 生成进度汇报, 发项目进展到群, 创建进度文档, 这个 PR 做了什么, summarize recent code progress, publish engineering progress, explain a PR, or describe what changed, why that approach was chosen, what it means for the workflow, and what to do next based on commits, branches, and PRs.
+description: Generate a plain-language, decision-oriented engineering progress update from recent repository changes or a specific GitHub PR, with optional local output, Lark/Feishu message delivery, Lark/Feishu document creation, or both. Also powers the unattended daily team report (定时团队日报, launchd-driven, rolling 24h window). Use when the user asks to 同步进度, 生成进度汇报, 团队日报, 发项目进展到群, 创建进度文档, 这个 PR 做了什么, summarize recent code progress, publish engineering progress, explain a PR, or describe what changed, why that approach was chosen, what it means for the workflow, and what to do next based on commits, branches, and PRs.
 ---
 
 # Progress Report
 
 生成一份面向团队同步的工程进度报告：从 GitHub 仓库最近代码改动或指定 PR 采集数据，先形成可追溯事实底稿，再改写成平白、面向决策的同步内容，说明“做了什么 / 为什么这样做 / 对工作流有什么意义 / 还有什么待确认 / 下一步是什么”。根据用户请求或 `output.mode` 决定只本地输出、只发送飞书消息、只创建飞书文档，或创建文档后投递消息。
+
+除按需调用外，本 skill 还承载无人值守的**定时团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`，以「过去24小时」滚动窗口采集（与上一期无缝衔接），`message_only` 私发负责人并插入 `lark.daily_log_doc` 留档文档最前。
 
 ## Prerequisites
 
@@ -21,6 +23,7 @@ description: Generate a plain-language, decision-oriented engineering progress u
 
 **时间范围模式**：
 
+- `过去24小时` / `24h` → 此刻往前推 24 小时（定时日报用这个，天与天之间无缝衔接不漏数据）
 - `今天` → 今天 00:00 到现在
 - `昨天` → 昨天 00:00 到 23:59
 - `本周` → 本周一到今天
