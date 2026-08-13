@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template — replace:
+    PATH_TO_REPO     = where you cloned lark-skills
+    PATH_TO_NODE_BIN = directory containing claude/codex/node
+    YOUR_USERNAME    = your macOS short username
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lark-skills.daily-team-report</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>PATH_TO_REPO/launchd/run-daily-team-report.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>PATH_TO_REPO</string>
+
+    <!-- 每天 21:00 跑;统计过去 24 小时(21:00 ~ 次日 21:00 无缝衔接),私发团队日报给团队负责人 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>21</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/lark-skills-daily-team-report.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/lark-skills-daily-team-report.stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>PATH_TO_NODE_BIN:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/YOUR_USERNAME</string>
+        <key>LARK_SKILLS_REPO</key>
+        <string>PATH_TO_REPO</string>
+    </dict>
+</dict>
+</plist>

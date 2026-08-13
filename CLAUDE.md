@@ -50,7 +50,7 @@ skills/weekly-report/           # 周报生成
 ├── config.example.yaml
 └── scripts/
 
-skills/progress-report/         # 项目进度同步
+skills/progress-report/         # 项目进度同步 + 定时团队日报(launchd 每日 21:00,过去 24h 窗口)
 ├── SKILL.md
 ├── config.yaml
 ├── config.example.yaml

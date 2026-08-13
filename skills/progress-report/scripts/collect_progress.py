@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -54,9 +55,44 @@ def load_config(path: Path) -> dict:
     return cfg
 
 
+def utc_ts(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def day_bounds(since_day, until_day) -> tuple[str, str, str]:
+    # 日期按本地时区解释再转 UTC；直接拼 T00:00:00Z 会把窗口整体偏移一个时区
+    tz = datetime.now().astimezone().tzinfo
+    start = datetime(since_day.year, since_day.month, since_day.day, tzinfo=tz)
+    end = datetime(until_day.year, until_day.month, until_day.day, 23, 59, 59, tzinfo=tz)
+    return utc_ts(start), utc_ts(end), f"{since_day.isoformat()} ~ {until_day.isoformat()}"
+
+
 def parse_range(label: str, default_days: int) -> tuple[str, str, str]:
-    today = datetime.now().date()
+    now = datetime.now().astimezone()
+    today = now.date()
     text = (label or "").strip()
+    if re.fullmatch(r"(?:过去|最近)?\s*24\s*(?:小时|h)", text, re.IGNORECASE):
+        start = now - timedelta(hours=24)
+        label_text = f"{start.strftime('%Y-%m-%d %H:%M')} ~ {now.strftime('%Y-%m-%d %H:%M')}（过去 24 小时）"
+        return utc_ts(start), utc_ts(now), label_text
+    m = re.fullmatch(
+        r"(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})\s*[~到至]\s*(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})", text
+    )
+    if m:
+        tz = now.tzinfo
+        start = datetime.strptime(m.group(1), "%Y-%m-%d").replace(
+            hour=int(m.group(2)), minute=int(m.group(3)), tzinfo=tz
+        )
+        end = datetime.strptime(m.group(4), "%Y-%m-%d").replace(
+            hour=int(m.group(5)), minute=int(m.group(6)), tzinfo=tz
+        )
+        label_text = f"{start.strftime('%Y-%m-%d %H:%M')} ~ {end.strftime('%Y-%m-%d %H:%M')}"
+        return utc_ts(start), utc_ts(end), label_text
+    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2})(?:\s*[~到至]\s*(\d{4}-\d{2}-\d{2}))?", text)
+    if m:
+        since = datetime.strptime(m.group(1), "%Y-%m-%d").date()
+        until = datetime.strptime(m.group(2), "%Y-%m-%d").date() if m.group(2) else since
+        return day_bounds(since, until)
     if text in ("今天", "today"):
         since = until = today
     elif text in ("昨天", "yesterday"):
@@ -73,7 +109,7 @@ def parse_range(label: str, default_days: int) -> tuple[str, str, str]:
         days = int(m.group(1)) if m else int(default_days or 7)
         since = today - timedelta(days=days - 1)
         until = today
-    return since.isoformat(), until.isoformat(), f"{since.isoformat()} ~ {until.isoformat()}"
+    return day_bounds(since, until)
 
 
 def parse_pr_ref(value: str, repos: list[str]) -> tuple[str, int]:
@@ -120,12 +156,19 @@ def github_get(token: str, endpoint: str, params: dict | None = None, paginate: 
         req = urllib.request.Request(url)
         req.add_header("Authorization", f"token {token}")
         req.add_header("Accept", "application/vnd.github+json")
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8", errors="replace")[:300]
-            raise RuntimeError(f"GitHub API {endpoint} failed: HTTP {e.code}: {body}") from e
+        # 本机网络对 api.github.com 有间歇性连接重置,瞬时错误需重试
+        for attempt in range(5):
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                break
+            except urllib.error.HTTPError as e:
+                body = e.read().decode("utf-8", errors="replace")[:300]
+                raise RuntimeError(f"GitHub API {endpoint} failed: HTTP {e.code}: {body}") from e
+            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+                if attempt == 4:
+                    raise RuntimeError(f"GitHub API {endpoint} failed after retries: {e}") from e
+                time.sleep(1.5 * (attempt + 1))
         if not paginate or not isinstance(data, list):
             return data
         results.extend(data)
@@ -210,8 +253,9 @@ def normalize_pr(repo: str, pr: dict) -> dict:
 
 
 def should_include_pr(pr: dict, since: str, until: str, include_open_prs: bool) -> bool:
-    updated = (pr.get("updated_at") or "")[:10]
-    created = (pr.get("created_at") or "")[:10]
+    # since/until 与 GitHub 时间戳同为 UTC ISO 格式，可直接字典序比较
+    updated = pr.get("updated_at") or ""
+    created = pr.get("created_at") or ""
     if created > until:
         return False
     return updated >= since or (include_open_prs and pr.get("state") == "open")
@@ -432,7 +476,7 @@ def main():
             branches = github_get(token, f"/repos/{owner}/{repo}/branches")[:max_branches]
         for branch in branches:
             branch_name = branch.get("name") or ""
-            params = {"since": f"{since}T00:00:00Z", "until": f"{until}T23:59:59Z"}
+            params = {"since": since, "until": until}
             if branch_name:
                 params["sha"] = branch_name
             for commit in github_get(token, f"/repos/{owner}/{repo}/commits", params):
@@ -454,7 +498,7 @@ def main():
             })
         for query in pr_queries:
             for pr in github_get(token, f"/repos/{owner}/{repo}/pulls", query):
-                updated = (pr.get("updated_at") or "")[:10]
+                updated = pr.get("updated_at") or ""
                 if query["state"] == "all" and updated < since:
                     break
                 if not should_include_pr(pr, since, until, include_open_prs):
