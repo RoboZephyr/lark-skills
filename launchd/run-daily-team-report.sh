@@ -44,6 +44,19 @@ cd "$REPO_DIR" || {
 
 echo "$LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S %Z') starting (run_id=$RUN_ID)"
 
+# ---------- 全程持有 caffeinate ----------
+# 关键:launchd 在机器睡眠时靠 DarkWake 把任务叫起来,而 DarkWake 会在维护窗口结束时
+# 立刻睡回去(2026-08-16 就是 21:03:50 唤醒、21:03:52 回睡,claude 拿不到网络直接 ENOTFOUND)。
+# 所以断言必须从脚本第一步就持有,而不是等到调用 claude 时才拿——那时早就睡回去了。
+# -i 阻止空闲休眠;-s 阻止系统休眠(仅 AC 供电时生效);-w 让 caffeinate 跟随本脚本生命周期自动退出。
+CAFFEINATE_BIN="$(command -v caffeinate 2>/dev/null || true)"
+if [ -n "$CAFFEINATE_BIN" ]; then
+  "$CAFFEINATE_BIN" -is -w $$ &
+  echo "$LOG_PREFIX holding caffeinate -is for the whole run (pid $!)"
+else
+  echo "$LOG_PREFIX caffeinate not found; machine may sleep mid-run" >&2
+fi
+
 # ---------- 失败告警:三次都失败时私发一条飞书消息,避免漏发被静默 ----------
 alert_failure() {
   local reason="$1"
@@ -154,7 +167,6 @@ if [ ! -x "$CLAUDE_BIN" ]; then
 fi
 
 # ---------- 主循环:最多 MAX_ATTEMPTS 次,每次带超时 ----------
-CAFFEINATE_BIN="$(command -v caffeinate 2>/dev/null || true)"
 claude_status=1
 attempt=1
 
@@ -165,16 +177,9 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
     echo "$LOG_PREFIX skipping attempt ${attempt}: no network" >&2
     claude_status=1
   else
-    if [ -n "$CAFFEINATE_BIN" ]; then
-      # -i 阻止空闲休眠,防止任务跑到一半机器睡回去(2026-08-16 的漏发就是这么来的)
-      run_with_timeout "$RUN_TIMEOUT" "$CAFFEINATE_BIN" -i "$CLAUDE_BIN" -p "$PROMPT" \
-        --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
-        >"$CLAUDE_LOG" 2>&1
-    else
-      run_with_timeout "$RUN_TIMEOUT" "$CLAUDE_BIN" -p "$PROMPT" \
-        --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
-        >"$CLAUDE_LOG" 2>&1
-    fi
+    run_with_timeout "$RUN_TIMEOUT" "$CLAUDE_BIN" -p "$PROMPT" \
+      --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+      >"$CLAUDE_LOG" 2>&1
     claude_status=$?
     cat "$CLAUDE_LOG"
   fi
