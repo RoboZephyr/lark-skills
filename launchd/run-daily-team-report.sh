@@ -31,13 +31,103 @@ LOG_PREFIX="[daily-team-report]"
 RUN_ID="$(date '+%Y%m%d-%H%M%S')"
 CLAUDE_LOG="/tmp/lark-skills-daily-team-report.claude.${RUN_ID}.log"
 
+# 可用环境变量覆盖(见 weekly-report.env)
+MAX_ATTEMPTS="${DAILY_TEAM_REPORT_MAX_ATTEMPTS:-3}"
+RETRY_DELAY="${DAILY_TEAM_REPORT_RETRY_DELAY:-120}"
+RUN_TIMEOUT="${DAILY_TEAM_REPORT_TIMEOUT:-1200}"
+NET_WAIT="${DAILY_TEAM_REPORT_NET_WAIT:-180}"
+
 cd "$REPO_DIR" || {
   echo "$LOG_PREFIX cannot cd to $REPO_DIR" >&2
   exit 1
 }
 
-echo "$LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S %Z') starting"
+echo "$LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S %Z') starting (run_id=$RUN_ID)"
 
+# ---------- 失败告警:三次都失败时私发一条飞书消息,避免漏发被静默 ----------
+alert_failure() {
+  local reason="$1"
+  local target
+  target="$(python3 -c '
+import sys
+sys.path.insert(0, "skills/progress-report/scripts")
+from pathlib import Path
+from collect_progress import load_config
+cfg = load_config(Path("skills/progress-report/config.yaml"))
+targets = (cfg.get("delivery") or {}).get("targets") or []
+print(targets[0].get("id", "") if targets else "")
+' 2>/dev/null || true)"
+
+  if [ -z "$target" ]; then
+    echo "$LOG_PREFIX cannot alert: no delivery target in config" >&2
+    return
+  fi
+  if ! command -v lark-cli >/dev/null 2>&1; then
+    echo "$LOG_PREFIX cannot alert: lark-cli not found" >&2
+    return
+  fi
+
+  local body
+  body="**⚠️ 团队日报生成失败**
+
+- 时间: $(date '+%Y-%m-%d %H:%M:%S %Z')
+- 原因: ${reason}
+- 已重试: ${MAX_ATTEMPTS} 次
+- 日志: ${CLAUDE_LOG}
+
+最后 10 行输出:
+\`\`\`
+$(tail -n 10 "$CLAUDE_LOG" 2>/dev/null || echo '(无输出)')
+\`\`\`
+
+补发方式: 在仓库里跑 \`/progress-report\`,统计窗口指定为漏掉的那一段。"
+
+  if lark-cli im +messages-send --user-id "$target" --markdown "$body" --as bot >/dev/null 2>&1; then
+    echo "$LOG_PREFIX failure alert sent"
+  else
+    echo "$LOG_PREFIX failed to send failure alert" >&2
+  fi
+}
+
+# ---------- 等网络:覆盖 Mac 从睡眠中被唤醒、网络还没起来的场景 ----------
+wait_for_network() {
+  local waited=0
+  while [ "$waited" -lt "$NET_WAIT" ]; do
+    if curl -sS --max-time 8 -o /dev/null https://api.github.com/zen 2>/dev/null; then
+      [ "$waited" -gt 0 ] && echo "$LOG_PREFIX network ready after ${waited}s"
+      return 0
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+  echo "$LOG_PREFIX network still unreachable after ${NET_WAIT}s" >&2
+  return 1
+}
+
+# ---------- 超时看门狗:macOS 没有 timeout(1),自己轮询 ----------
+run_with_timeout() {
+  local secs="$1"; shift
+  "$@" &
+  local pid=$!
+  local waited=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$waited" -ge "$secs" ]; then
+      echo "$LOG_PREFIX timeout after ${secs}s, killing pid $pid" >&2
+      pkill -TERM -P "$pid" 2>/dev/null || true
+      kill -TERM "$pid" 2>/dev/null || true
+      sleep 5
+      pkill -KILL -P "$pid" 2>/dev/null || true
+      kill -KILL "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      return 124
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+  wait "$pid"
+}
+
+# ---------- GitHub token ----------
 if [ -n "${GITHUB_TOKEN:-}" ]; then
   echo "$LOG_PREFIX using pre-set GITHUB_TOKEN"
   [ -z "${GH_TOKEN:-}" ] && export GH_TOKEN="$GITHUB_TOKEN"
@@ -59,18 +149,58 @@ fi
 
 if [ ! -x "$CLAUDE_BIN" ]; then
   echo "$LOG_PREFIX Claude binary not executable: $CLAUDE_BIN" >&2
+  alert_failure "Claude binary not executable: $CLAUDE_BIN"
   exit 127
 fi
 
-echo "$LOG_PREFIX running Claude: $CLAUDE_BIN"
-"$CLAUDE_BIN" -p "$PROMPT" \
-  --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
-  >"$CLAUDE_LOG" 2>&1
-claude_status=$?
-cat "$CLAUDE_LOG"
-if [ "$claude_status" -eq 0 ]; then
-  echo "$LOG_PREFIX completed successfully"
+# ---------- 主循环:最多 MAX_ATTEMPTS 次,每次带超时 ----------
+CAFFEINATE_BIN="$(command -v caffeinate 2>/dev/null || true)"
+claude_status=1
+attempt=1
+
+while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
+  echo "$LOG_PREFIX attempt ${attempt}/${MAX_ATTEMPTS} at $(date '+%H:%M:%S')"
+
+  if ! wait_for_network; then
+    echo "$LOG_PREFIX skipping attempt ${attempt}: no network" >&2
+    claude_status=1
+  else
+    if [ -n "$CAFFEINATE_BIN" ]; then
+      # -i 阻止空闲休眠,防止任务跑到一半机器睡回去(2026-08-16 的漏发就是这么来的)
+      run_with_timeout "$RUN_TIMEOUT" "$CAFFEINATE_BIN" -i "$CLAUDE_BIN" -p "$PROMPT" \
+        --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+        >"$CLAUDE_LOG" 2>&1
+    else
+      run_with_timeout "$RUN_TIMEOUT" "$CLAUDE_BIN" -p "$PROMPT" \
+        --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+        >"$CLAUDE_LOG" 2>&1
+    fi
+    claude_status=$?
+    cat "$CLAUDE_LOG"
+  fi
+
+  if [ "$claude_status" -eq 0 ]; then
+    echo "$LOG_PREFIX completed successfully on attempt ${attempt}"
+    exit 0
+  fi
+
+  if [ "$claude_status" -eq 124 ]; then
+    echo "$LOG_PREFIX attempt ${attempt} timed out after ${RUN_TIMEOUT}s" >&2
+  else
+    echo "$LOG_PREFIX attempt ${attempt} failed with exit ${claude_status}" >&2
+  fi
+
+  if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+    echo "$LOG_PREFIX retrying in ${RETRY_DELAY}s"
+    sleep "$RETRY_DELAY"
+  fi
+  attempt=$((attempt + 1))
+done
+
+echo "$LOG_PREFIX failed after ${MAX_ATTEMPTS} attempts (last exit ${claude_status})" >&2
+if [ "$claude_status" -eq 124 ]; then
+  alert_failure "连续 ${MAX_ATTEMPTS} 次超时(每次上限 ${RUN_TIMEOUT}s)"
 else
-  echo "$LOG_PREFIX failed with exit $claude_status" >&2
+  alert_failure "连续 ${MAX_ATTEMPTS} 次失败(最后退出码 ${claude_status})"
 fi
 exit "$claude_status"
