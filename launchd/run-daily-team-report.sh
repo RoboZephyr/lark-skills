@@ -25,7 +25,8 @@ PROMPT="run progress-report 过去24小时。必须读取并遵循 skills/progre
 4. 只写采集到的事实;某成员窗口内无代码活动就写「过去 24 小时无代码提交」,不要编造。
    所有 PR 引用一律写成 markdown 链接,如 [#98](https://github.com/<org>/<repo>/pull/98),URL 取自采集数据,不要凭记忆拼;消息和留档文档都要带链接。
 5. 无人值守场景,跳过「发送前先给用户 review」的要求,直接发送。消息末尾附一行留档入口:[查看日报留档](<config lark.daily_log_doc.url>)。
-6. 发送消息后,把同一份日报以 markdown 插入到 config.yaml 的 lark.daily_log_doc 留档文档的最前面(最新日报在最上,不要新建文档):插入内容以二级标题「## <今天日期 YYYY-MM-DD>」开头,末尾加分隔线;命令为 lark-cli docs +update --doc <token> --command block_insert_after --block-id 0 --doc-format markdown --content - --as bot(内容走 stdin,--block-id 0 表示文档开头)。留档失败不影响消息发送,但要在日志里说明。"
+6. 发送消息后,把同一份日报以 markdown 插入到 config.yaml 的 lark.daily_log_doc 留档文档的最前面(最新日报在最上,不要新建文档):插入内容以二级标题「## <今天日期 YYYY-MM-DD>」开头,末尾加分隔线;命令为 lark-cli docs +update --doc <token> --command block_insert_after --block-id 0 --doc-format markdown --content - --as bot(内容走 stdin,--block-id 0 表示文档开头)。留档失败不影响消息发送,但要在日志里说明。
+7. 执行方式硬性要求:所有命令(尤其是数据采集脚本)必须前台同步执行并等待其完成,严禁把任何命令放到后台(run_in_background)执行后结束回合等通知——本任务跑在 claude -p 非交互模式下,回合结束进程就退出,后台任务会被直接丢弃。最终输出必须包含实际发送成功返回的 message_id(om_ 开头);消息没有真正发出去就绝不能输出 message_id。"
 
 LOG_PREFIX="[daily-team-report]"
 RUN_ID="$(date '+%Y%m%d-%H%M%S')"
@@ -185,8 +186,14 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
   fi
 
   if [ "$claude_status" -eq 0 ]; then
-    echo "$LOG_PREFIX completed successfully on attempt ${attempt}"
-    exit 0
+    # 退出码 0 不代表真的发了:2026-08-19 曾出现 claude 把采集脚本放后台后直接结束回合,
+    # 进程 exit 0 但消息根本没发。必须在输出里看到发送成功的 message_id(om_ 开头)才算成功。
+    if grep -qE 'om_[0-9a-z]{8,}' "$CLAUDE_LOG"; then
+      echo "$LOG_PREFIX completed successfully on attempt ${attempt}"
+      exit 0
+    fi
+    echo "$LOG_PREFIX exit 0 but no message_id in output; treating as failure" >&2
+    claude_status=1
   fi
 
   if [ "$claude_status" -eq 124 ]; then
