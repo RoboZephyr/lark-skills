@@ -21,6 +21,8 @@ report:
   default_days: 7
   include_all_branches: true
   include_open_prs: true
+  # 并发核验候选 PR 的原始 commits 与 timeline
+  github_workers: 8
   # PR 模式不受时间范围限制；通过 --pr 指定 PR URL / owner/repo#123 / #123
   max_branches_per_repo: 80
   max_commits_per_section: 12

@@ -97,8 +97,10 @@ python3 skills/progress-report/scripts/collect_progress.py \
 
 脚本采集口径：
 
-- 默认统计所有分支的 commits（`report.include_all_branches: true`），按 SHA 去重，避免只看 `main`
-- 同时采集时间范围内更新过的 PR，以及仍打开的 PR
+- PR 的 `updated_at` 只用于发现候选；最终只保留窗口内新开、推入 commit、评审/评论、状态推进、关闭或合并的活跃 PR，忽略 `head_ref_deleted` 等维护事件
+- 活跃 PR 的提交从 GitHub PR commits 读取，因此 squash merge 或删除源分支后仍保留原始提交；按 SHA 全局去重，并排除已由原始提交代表的 synthetic squash/merge commit
+- 默认扫描所有现存分支（`report.include_all_branches: true`）作为补充，只纳入尚未开 PR 的分支提交和直接 push
+- `raw.stats` 是团队与成员数字的唯一事实来源；Agent 不得自行重数或改写人数、提交数和 PR 数
 - PR 模式只采集该 PR 的 commits、files 和 PR 状态，不受时间范围限制
 - 只保留能匹配团队成员 GitHub login 或 extra_emails 的提交
 - 报告必须只使用采集到的数据，不能编造

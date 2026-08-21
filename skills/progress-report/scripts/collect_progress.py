@@ -14,6 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -216,17 +217,30 @@ def commit_member(commit: dict, by_alias: dict) -> str | None:
     return by_alias.get(login) or by_alias.get(email)
 
 
+def in_window(value: str | None, since: str, until: str) -> bool:
+    return bool(value and since <= value <= until)
+
+
+def commit_timestamp(commit: dict) -> str:
+    payload = commit.get("commit") or {}
+    committer = payload.get("committer") or {}
+    author = payload.get("author") or {}
+    return committer.get("date") or author.get("date") or ""
+
+
 def normalize_commit(repo: str, branch: str, commit: dict, member: str) -> dict:
     c = commit.get("commit") or {}
     author = c.get("author") or {}
     message = c.get("message") or ""
+    timestamp = commit_timestamp(commit)
     return {
         "sha": commit.get("sha", ""),
         "repo": repo,
         "branch": branch,
         "member": member,
         "title": message.splitlines()[0].strip(),
-        "date": (author.get("date") or "")[:10],
+        "timestamp": timestamp,
+        "date": timestamp[:10],
         "url": commit.get("html_url", ""),
         "author": author.get("name", ""),
         "email": (author.get("email") or "").lower(),
@@ -245,7 +259,9 @@ def normalize_pr(repo: str, pr: dict) -> dict:
         "head": (pr.get("head") or {}).get("ref", ""),
         "updated_at": pr.get("updated_at", ""),
         "created_at": pr.get("created_at", ""),
+        "closed_at": pr.get("closed_at"),
         "merged_at": pr.get("merged_at"),
+        "merge_commit_sha": pr.get("merge_commit_sha", ""),
         "additions": pr.get("additions", 0),
         "deletions": pr.get("deletions", 0),
         "changed_files": pr.get("changed_files", 0),
@@ -253,12 +269,144 @@ def normalize_pr(repo: str, pr: dict) -> dict:
 
 
 def should_include_pr(pr: dict, since: str, until: str, include_open_prs: bool) -> bool:
-    # since/until 与 GitHub 时间戳同为 UTC ISO 格式，可直接字典序比较
+    # updated_at 只用于发现候选 PR；最终是否属于窗口由 activity evidence 决定。
     updated = pr.get("updated_at") or ""
     created = pr.get("created_at") or ""
     if created > until:
         return False
     return updated >= since or (include_open_prs and pr.get("state") == "open")
+
+
+MATERIAL_TIMELINE_EVENTS = {
+    "closed",
+    "converted_to_draft",
+    "merged",
+    "ready_for_review",
+    "reopened",
+    "review_dismissed",
+    "review_request_removed",
+    "review_requested",
+    "reviewed",
+}
+
+
+def timeline_timestamp(item: dict) -> str:
+    return item.get("submitted_at") or item.get("created_at") or item.get("updated_at") or ""
+
+
+def is_timeline_comment(item: dict) -> bool:
+    return not item.get("event") and bool(item.get("body")) and bool(item.get("user"))
+
+
+def classify_pr_activity(
+    pr: dict,
+    commits: list[dict],
+    timeline: list[dict],
+    since: str,
+    until: str,
+) -> dict:
+    reasons = []
+    ignored_events = []
+    if in_window(pr.get("created_at"), since, until):
+        reasons.append({"kind": "opened", "at": pr["created_at"]})
+    if in_window(pr.get("merged_at"), since, until):
+        reasons.append({"kind": "merged", "at": pr["merged_at"]})
+    elif in_window(pr.get("closed_at"), since, until):
+        reasons.append({"kind": "closed", "at": pr["closed_at"]})
+
+    window_commits = [c for c in commits if in_window(commit_timestamp(c), since, until)]
+    if window_commits:
+        reasons.append({"kind": "commits", "count": len(window_commits)})
+
+    for item in timeline:
+        at = timeline_timestamp(item)
+        if not in_window(at, since, until):
+            continue
+        event = item.get("event") or "comment"
+        if event in MATERIAL_TIMELINE_EVENTS or is_timeline_comment(item):
+            reasons.append({"kind": event, "at": at})
+        else:
+            ignored_events.append({"kind": event, "at": at})
+
+    return {
+        "pr": pr,
+        "active": bool(reasons),
+        "reasons": reasons,
+        "ignored_events": ignored_events,
+        "commits": commits,
+        "window_commits": window_commits,
+    }
+
+
+def fetch_pr_activity(token: str, pr: dict, since: str, until: str) -> dict:
+    owner, repo = pr["repo"].split("/", 1)
+    number = pr["number"]
+    commits = github_get(token, f"/repos/{owner}/{repo}/pulls/{number}/commits")
+    activity = classify_pr_activity(pr, commits, [], since, until)
+    if not activity["active"] and in_window(pr.get("updated_at"), since, until):
+        timeline = github_get(token, f"/repos/{owner}/{repo}/issues/{number}/timeline")
+        activity = classify_pr_activity(pr, commits, timeline, since, until)
+    return activity
+
+
+def collect_pr_activity(
+    token: str,
+    prs: list[dict],
+    since: str,
+    until: str,
+    workers: int = 8,
+) -> list[dict]:
+    evidence = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(fetch_pr_activity, token, pr, since, until): pr
+            for pr in prs
+        }
+        for future in as_completed(futures):
+            evidence.append(future.result())
+    return sorted(
+        evidence,
+        key=lambda item: item["pr"].get("updated_at", ""),
+        reverse=True,
+    )
+
+
+def build_activity_commit_index(
+    branch_commits: dict[str, dict],
+    evidence: list[dict],
+    by_alias: dict,
+    since: str,
+    until: str,
+) -> dict[str, dict]:
+    active = [item for item in evidence if item["active"]]
+    pr_commit_shas = set()
+    synthetic_merge_shas = set()
+    activity_commits = {}
+
+    for item in active:
+        pr = item["pr"]
+        all_shas = {c.get("sha", "") for c in item["commits"] if c.get("sha")}
+        pr_commit_shas.update(all_shas)
+        merge_sha = pr.get("merge_commit_sha") or ""
+        if pr.get("merged_at") and merge_sha and merge_sha not in all_shas:
+            synthetic_merge_shas.add(merge_sha)
+        for commit in item["window_commits"]:
+            member = commit_member(commit, by_alias)
+            if not member:
+                continue
+            normalized = normalize_commit(pr["repo"], pr.get("head") or "pull-request", commit, member)
+            if normalized["sha"]:
+                activity_commits[normalized["sha"]] = normalized
+
+    # Branch scanning remains as a fallback for direct pushes and work that has
+    # not opened a PR. Original PR commits and synthetic squash/merge commits
+    # are excluded so each logical commit is counted once.
+    for sha, commit in branch_commits.items():
+        if sha in pr_commit_shas or sha in synthetic_merge_shas:
+            continue
+        if in_window(commit.get("timestamp"), since, until):
+            activity_commits[sha] = commit
+    return activity_commits
 
 
 def render_report(raw: dict, max_items: int) -> str:
@@ -268,6 +416,7 @@ def render_report(raw: dict, max_items: int) -> str:
     date_range = raw["date_range"]
     commits = raw["commits"]
     prs = raw["prs"]
+    stats = raw.get("stats") or {}
     by_member = defaultdict(list)
     by_repo = defaultdict(list)
     for c in commits:
@@ -280,9 +429,9 @@ def render_report(raw: dict, max_items: int) -> str:
         "## 结论",
         "",
         f"- 数据来源: {', '.join(raw['repos'])}",
-        f"- 匹配提交: {len(commits)} 次",
-        f"- 相关 PR: {len(prs)} 个",
-        f"- 活跃成员: {len(by_member)} 人",
+        f"- 匹配提交: {stats.get('commit_count', len(commits))} 次",
+        f"- 活跃 PR: {stats.get('active_pr_count', len(prs))} 个",
+        f"- 活跃成员: {stats.get('active_member_count', len(by_member))} 人",
         "- 这是代码事实底稿；发布前请结合业务上下文改写成一句清楚结论。",
         "",
         "## 做了什么",
@@ -442,6 +591,7 @@ def main():
     include_open_prs = bool(report_cfg.get("include_open_prs", True))
     max_branches = int(report_cfg.get("max_branches_per_repo", 80))
     max_items = int(report_cfg.get("max_commits_per_section", 12))
+    github_workers = int(report_cfg.get("github_workers", 8))
 
     if args.pr:
         repo_full, pr_number = parse_pr_ref(args.pr, repos)
@@ -511,6 +661,52 @@ def main():
                     continue
                 prs_by_key[key] = normalize_pr(repo_full, pr)
 
+    candidate_prs = sorted(
+        prs_by_key.values(),
+        key=lambda x: x.get("updated_at", ""),
+        reverse=True,
+    )
+    pr_activity = collect_pr_activity(
+        token,
+        candidate_prs,
+        since,
+        until,
+        workers=github_workers,
+    )
+    active_pr_evidence = [item for item in pr_activity if item["active"]]
+    activity_commits_by_sha = build_activity_commit_index(
+        commits_by_sha,
+        pr_activity,
+        by_alias,
+        since,
+        until,
+    )
+    active_prs = []
+    for item in active_pr_evidence:
+        pr = dict(item["pr"])
+        pr["activity_reasons"] = item["reasons"]
+        active_prs.append(pr)
+
+    member_stats = {
+        username: {
+            "display_name": meta.get("display_name", username),
+            "commit_count": 0,
+            "active_pr_count": 0,
+        }
+        for username, meta in members.items()
+    }
+    for commit in activity_commits_by_sha.values():
+        member_stats[commit["member"]]["commit_count"] += 1
+    for pr in active_prs:
+        member = by_alias.get(pr["user"])
+        if member:
+            member_stats[member]["active_pr_count"] += 1
+
+    active_members = sum(
+        1
+        for stats in member_stats.values()
+        if stats["commit_count"] or stats["active_pr_count"]
+    )
     raw = {
         "mode": "range",
         "since": since,
@@ -518,13 +714,36 @@ def main():
         "date_range": date_range,
         "repos": repos,
         "members": members,
-        "commits": sorted(commits_by_sha.values(), key=lambda x: (x["date"], x["repo"], x["sha"]), reverse=True),
-        "prs": sorted(prs_by_key.values(), key=lambda x: x.get("updated_at", ""), reverse=True),
+        "stats": {
+            "commit_count": len(activity_commits_by_sha),
+            "active_pr_count": len(active_prs),
+            "active_member_count": active_members,
+            "by_member": member_stats,
+            "candidate_pr_count": len(candidate_prs),
+        },
+        "commits": sorted(
+            activity_commits_by_sha.values(),
+            key=lambda x: (x["timestamp"], x["repo"], x["sha"]),
+            reverse=True,
+        ),
+        "prs": active_prs,
+        "ignored_prs": [
+            {
+                **item["pr"],
+                "ignored_events": item["ignored_events"],
+            }
+            for item in pr_activity
+            if not item["active"]
+        ],
     }
 
     Path(args.raw_output).write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
     Path(args.output).write_text(render_report(raw, max_items), encoding="utf-8")
-    print(f"wrote {args.output} and {args.raw_output}: {len(raw['commits'])} commits, {len(raw['prs'])} PRs")
+    print(
+        f"wrote {args.output} and {args.raw_output}: "
+        f"{len(raw['commits'])} commits, {len(raw['prs'])} active PRs "
+        f"({len(candidate_prs)} candidates)"
+    )
 
 
 if __name__ == "__main__":
