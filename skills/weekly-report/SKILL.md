@@ -51,7 +51,7 @@ python3 skills/weekly-report/scripts/init_index.py \
 - `gitlab` — GitLab 连接信息
 - `github` — GitHub 仓库列表（可选）
 - `lark.permissions` — 飞书文档权限配置
-- `lark.doc.folder_token` — 周报文档归档文件夹；为空时停止，禁止回退到云盘根目录
+- `lark.doc.folder_token` — 旧式 Git/PR 团队技术周报的历史归档文件夹；不要指向“每周需求管理”；为空时停止，禁止回退到云盘根目录
 - `report` — 报告生成选项
 
 Token 优先级：

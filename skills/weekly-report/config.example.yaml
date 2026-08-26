@@ -59,7 +59,7 @@ lark:
     old_owner_perm: "full_access"
 
   doc:
-    folder_token: "YOUR_WEEKLY_REPORT_FOLDER_TOKEN" # 周报归档目录，禁止留空
+    folder_token: "YOUR_WEEKLY_REPORT_FOLDER_TOKEN" # 旧式团队/技术周报历史归档目录，禁止留空；不要指向“每周需求管理”
 
 # ------ 消息投递 ------
 delivery:

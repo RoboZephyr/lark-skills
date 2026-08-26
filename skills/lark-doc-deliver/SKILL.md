@@ -45,10 +45,16 @@ description: 通用飞书文档创建、云盘分类归档、权限转移和消�
 
 ### Step 2: 解析并验证云盘目标
 
-按以下优先级解析 `target_folder_token`：调用方传入的 `folder_token` → `storage.folders[folder_key]` → 根据标题和用户要求匹配 `storage.folder_aliases` → `storage.default_folder_token`。
+按以下优先级解析 `target_folder_token`：调用方传入的 `folder_token` → `storage.folders[folder_key]` → 业务专用规则 → 根据标题和用户要求匹配 `storage.folder_aliases` → `storage.default_folder_token`。
 
 - `target_folder_token` 为空时停止，禁止回退到云盘根目录。
 - `folder_key` 不存在时记录警告并进入 `storage.default_folder_token`，不要猜测其他目录。
+- 已知工作流应显式传入 `folder_key`，不要只依赖标题关键词。
+- 业务专用规则优先于通用别名：当前周执行计划、需求进度和产品闭环检查会资料进入 `weekly_demand_management`；旧式团队/技术周报、周报原始数据、汇总分析和历史会议记录进入 `reports`。即使前一类标题同时含有“产品”“需求”或“协作”，仍以 `weekly_demand_management` 为准。
+- 团队与招聘目录采用平铺结构：候选人面试记录进入 `candidates`；招聘流程、招聘作业和其他团队管理资料进入 `team`。Agent、工具和自动化类技术资料进入 `engineering`。
+- 具体业务短语优先于泛词：竞品分析进入 `competitor_analysis`，行业/产品研究进入 `research`，候选人面试进入 `candidates`，招聘流程/作业进入 `team`；不能因为标题同时含有“产品”或“工程”而判成歧义。
+- `archive` 仅在用户/调用方明确要求归档，或显式传入该 `folder_key` / `folder_token` 时使用；新文档不得仅凭宽泛标题自动进入归档。
+- 不再维护通用“产研协作”分类。只有“协作”“流程”“规范”等宽泛词且没有更明确分类时，进入 `storage.default_folder_token`。
 - 用户明确说“归档到某分类”时，同时匹配分类键和别名；例如“竞品分析”命中 `competitor_analysis`。仅有一个明确命中时才分类；仍有歧义时进入收件箱。
 - `folder_token` 必须等于 `storage.default_folder_token` 或 `storage.folders` 中的一个已登记值，且不能等于 `storage.root_folder_token`；未登记时停止，防止误写团队知识库、个人文档库根目录或其他云盘位置。
 - 创建前以 `lark.identity` 读取目标文件夹；无权限时停止，不要改在其他位置创建。
@@ -180,6 +186,7 @@ errors: <如有失败，列出>
 8. `transfer_owner` / `permission.members.create` 必须带 `--yes`，否则 lark-cli high-risk-write 网关会要求确认并导致自动流程失败
 9. 禁止在云盘根目录创建；无法判断分类时必须使用 `storage.default_folder_token`（00_收件箱）
 10. `stay_put` 必须为 `true`，且权限转移后必须回读所有者和目标文件夹验证
+11. 当前周执行资料与历史周报必须分流：`weekly_demand_management` 放当前需求/周计划，`reports` 只放旧式团队/技术周报与历史会议记录
 
 ## Troubleshooting
 

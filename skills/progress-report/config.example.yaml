@@ -39,6 +39,9 @@ output:
 lark:
   # 留空则使用 extends_config.lark
   permissions: {}
+  # 当前进度文档目录；应覆盖 weekly-report 的历史归档目录。
+  doc:
+    folder_token: "YOUR_CURRENT_PROGRESS_FOLDER_TOKEN"
 
 delivery:
   # 留空则使用 extends_config.delivery

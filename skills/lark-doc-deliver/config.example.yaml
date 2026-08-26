@@ -31,19 +31,28 @@ storage:
     inbox: "YOUR_INBOX_FOLDER_TOKEN"
     product: "YOUR_PRODUCT_FOLDER_TOKEN"
     engineering: "YOUR_ENGINEERING_FOLDER_TOKEN"
-    collaboration: "YOUR_COLLABORATION_FOLDER_TOKEN"
-    reports: "YOUR_REPORTS_FOLDER_TOKEN"
+    weekly_demand_management: "YOUR_WEEKLY_DEMAND_MANAGEMENT_FOLDER_TOKEN"
+    reports: "YOUR_HISTORICAL_REPORTS_FOLDER_TOKEN"
+    archive: "YOUR_ARCHIVE_FOLDER_TOKEN"
     project_index: "YOUR_PROJECT_INDEX_FOLDER_TOKEN"
     research: "YOUR_RESEARCH_FOLDER_TOKEN"
     competitor_analysis: "YOUR_COMPETITOR_ANALYSIS_FOLDER_TOKEN"
     candidates: "YOUR_CANDIDATES_FOLDER_TOKEN"
-    recruiting_operations: "YOUR_RECRUITING_OPERATIONS_FOLDER_TOKEN"
-    recruiting_exercises: "YOUR_RECRUITING_EXERCISES_FOLDER_TOKEN"
+    team: "YOUR_TEAM_FOLDER_TOKEN"
     administration: "YOUR_ADMINISTRATION_FOLDER_TOKEN"
-    tools: "YOUR_TOOLS_FOLDER_TOKEN"
   # 标题或用户要求明确命中别名时，选择对应 folder key；仍不确定则进入 default_folder_token。
   folder_aliases:
+    product: ["产品", "产品设计", "需求"]
+    engineering: ["技术", "工程", "架构", "代码", "工具", "Agent", "自动化"]
+    weekly_demand_management: ["每周需求管理", "周执行计划", "需求进度", "产品进度与周计划", "产品闭环检查会", "周计划会"]
+    reports: ["团队周报", "技术周报", "周报-原始数据", "周报-汇总分析", "会议纪要", "智能纪要", "文字记录"]
+    archive: ["归档", "历史资料", "历史记录"]
+    project_index: ["项目索引", "索引"]
+    research: ["研究", "调研"]
     competitor_analysis: ["竞品", "竞品分析", "竞争对手", "competitor", "competitive analysis"]
+    candidates: ["候选人", "简历", "面试"]
+    team: ["团队管理", "招聘运营", "招聘流程", "实战题", "招聘作业"]
+    administration: ["行政", "个人事务"]
 
 # ------ 消息投递 ------
 delivery:
