@@ -35,6 +35,7 @@ storage:
     reports: "YOUR_HISTORICAL_REPORTS_FOLDER_TOKEN"
     archive: "YOUR_ARCHIVE_FOLDER_TOKEN"
     project_index: "YOUR_PROJECT_INDEX_FOLDER_TOKEN"
+    zero_stage_delivery: "YOUR_ZERO_STAGE_DELIVERY_FOLDER_TOKEN"
     research: "YOUR_RESEARCH_FOLDER_TOKEN"
     competitor_analysis: "YOUR_COMPETITOR_ANALYSIS_FOLDER_TOKEN"
     candidates: "YOUR_CANDIDATES_FOLDER_TOKEN"
@@ -47,7 +48,8 @@ storage:
     weekly_demand_management: ["每周需求管理", "周执行计划", "需求进度", "产品进度与周计划", "产品闭环检查会", "周计划会"]
     reports: ["团队周报", "技术周报", "周报-原始数据", "周报-汇总分析", "会议纪要", "智能纪要", "文字记录"]
     archive: ["归档", "历史资料", "历史记录"]
-    project_index: ["项目索引", "索引"]
+    project_index: ["项目索引", "索引", "ICP", "产品假设", "产品发现", "标准测试剧本", "统一任务"]
+    zero_stage_delivery: ["零号台上线", "零号台交付", "付费内测", "上线清单", "交付清单", "发布清单", "验收清单"]
     research: ["研究", "调研"]
     competitor_analysis: ["竞品", "竞品分析", "竞争对手", "competitor", "competitive analysis"]
     candidates: ["候选人", "简历", "面试"]

@@ -51,6 +51,7 @@ description: 通用飞书文档创建、云盘分类归档、权限转移和消�
 - `folder_key` 不存在时记录警告并进入 `storage.default_folder_token`，不要猜测其他目录。
 - 已知工作流应显式传入 `folder_key`，不要只依赖标题关键词。
 - 业务专用规则优先于通用别名：当前周执行计划、需求进度和产品闭环检查会资料进入 `weekly_demand_management`；旧式团队/技术周报、周报原始数据、汇总分析和历史会议记录进入 `reports`。即使前一类标题同时含有“产品”“需求”或“协作”，仍以 `weekly_demand_management` 为准。
+- 零号台资料按工作性质分流：ICP、产品假设、产品发现、标准测试剧本和统一任务进入 `project_index`；竞品计划、分析和体验记录进入 `competitor_analysis`；上线、交付、发布、内测和验收清单进入 `zero_stage_delivery`。这些专用规则优先于泛化的 `product` 别名。
 - 团队与招聘目录采用平铺结构：候选人面试记录进入 `candidates`；招聘流程、招聘作业和其他团队管理资料进入 `team`。Agent、工具和自动化类技术资料进入 `engineering`。
 - 具体业务短语优先于泛词：竞品分析进入 `competitor_analysis`，行业/产品研究进入 `research`，候选人面试进入 `candidates`，招聘流程/作业进入 `team`；不能因为标题同时含有“产品”或“工程”而判成歧义。
 - `archive` 仅在用户/调用方明确要求归档，或显式传入该 `folder_key` / `folder_token` 时使用；新文档不得仅凭宽泛标题自动进入归档。

@@ -25,7 +25,13 @@ class LarkDocRoutingConfigTest(unittest.TestCase):
         )
         self.assertEqual(folders["inbox"], storage["default_folder_token"])
         self.assertTrue(
-            {"weekly_demand_management", "reports", "archive", "team"}
+            {
+                "weekly_demand_management",
+                "reports",
+                "archive",
+                "team",
+                "zero_stage_delivery",
+            }
             <= folders.keys()
         )
         self.assertFalse(
