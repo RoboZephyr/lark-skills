@@ -83,7 +83,7 @@ Subagent 产出写入 `/tmp/` 临时文件，主 Agent 汇总。
 
 ### lark-cli 使用要点
 
-- 大内容传递用 `@file`（相对路径）：`lark-cli docs +create --markdown @report.md`
+- 大内容传递用 `@file`（相对路径）：`lark-cli docs +create --content @report.md --doc-format markdown`
 - `im +messages-send` 的 `--markdown` 不支持 `@file`，用 `$(cat file)` 传递
 - 原始 API 调用：`lark-cli api <METHOD> <path> --data '<json>' --as <bot|user>`
 - 分页：`--page-all --page-size 50`

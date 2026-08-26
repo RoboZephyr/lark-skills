@@ -51,6 +51,7 @@ python3 skills/weekly-report/scripts/init_index.py \
 - `gitlab` — GitLab 连接信息
 - `github` — GitHub 仓库列表（可选）
 - `lark.permissions` — 飞书文档权限配置
+- `lark.doc.folder_token` — 周报文档归档文件夹；为空时停止，禁止回退到云盘根目录
 - `report` — 报告生成选项
 
 Token 优先级：
@@ -225,7 +226,7 @@ cat /tmp/weekly_user1.md /tmp/weekly_user2.md /tmp/weekly_user3.md > /tmp/weekly
 > **注意**：`lark-cli docs +create` 的 `@file` 路径必须是**相对于当前工作目录**的相对路径，
 > 不支持绝对路径。需要先将文件 cp 到工作目录，或 cd 到文件所在目录。
 
-> **`--title` 行为差异**:本步骤默认走 v1(`docs +create` 不带 `--api-version`)——v1 的 `--title` 会正确写入文档标题。如果显式加 `--api-version v2`,`--title` **对 markdown 内容会被静默忽略**(文档标题变 "Untitled"),必须让 markdown 第一行是 `# 期望标题` 充当 title。建议保持 v1 default,除非已经在 markdown 顶部放好 H1 标题。
+> `docs +create` 当前为 v2-only；Markdown 必须使用 `--content` 与 `--doc-format markdown`。`--title` 会作为最终标题写入。
 
 **4a. 创建原始数据文档**（如果 `report.create_raw_data_doc` 为 true）：
 
@@ -233,7 +234,9 @@ cat /tmp/weekly_user1.md /tmp/weekly_user2.md /tmp/weekly_user3.md > /tmp/weekly
 cp /tmp/weekly_raw_all.md ./weekly_raw_all.md
 lark-cli docs +create \
   --title "团队周报-原始数据 (MM.DD — MM.DD)" \
-  --markdown @weekly_raw_all.md \
+  --content @weekly_raw_all.md \
+  --doc-format markdown \
+  --parent-token "<lark.doc.folder_token>" \
   --as bot
 ```
 
@@ -243,12 +246,14 @@ lark-cli docs +create \
 cp /tmp/weekly_analysis.md ./weekly_analysis.md
 lark-cli docs +create \
   --title "团队周报-汇总分析 (MM.DD — MM.DD)" \
-  --markdown @weekly_analysis.md \
+  --content @weekly_analysis.md \
+  --doc-format markdown \
+  --parent-token "<lark.doc.folder_token>" \
   --as bot
 ```
 
-从输出 JSON 中提取 `doc_id`（路径: `.data.doc_id`）。
-文档 URL：输出中的 `.data.doc_url`。
+从输出 JSON 中提取 `document_id`（优先 `.data.document.document_id`，兼容 `.data.doc_id` / `.data.document_id`）。
+文档 URL 优先读取 `.data.document.url`，兼容 `.data.doc_url` / `.data.url`。
 
 ### Step 6: 转移文档权限
 
@@ -285,6 +290,7 @@ lark-cli drive permission.members create \
 ```
 
 > owner transfer 失败时不要发送群消息，避免投递不可访问的文档。其余成员授权失败时记录错误并在最终结果中报告。
+> `stay_put` 必须为 `true`。转移后先用 `drive metas batch_query --user-id-type open_id --as bot` 确认两个文档的 `owner_id` 等于第一个 `doc_owner_open_ids`，再用 `drive files list --folder-token <lark.doc.folder_token> --page-all --page-size 200 --as bot` 确认两个 `document_id` 仍在该目录；否则停止消息投递。
 
 ### Step 7: 消息投递
 
@@ -391,6 +397,7 @@ python3 skills/weekly-report/scripts/append_index.py \
 7. 大文件内容使用 `@file` 传递给 lark-cli，不要通过命令行参数传递
 8. Subagent 返回的摘要应在 300-500 字，包含关键数据和 MR 链接
 9. **索引追加是附加步骤**，失败不阻断主流程（raw + analysis doc + 投递三件正常完成即视为成功）
+10. **禁止落云盘根目录**：创建前必须确认 `lark.doc.folder_token` 非空；权限转移使用 `stay_put=true`，完成后回读所有者和目标文件夹验证
 
 ## Troubleshooting
 
@@ -401,7 +408,7 @@ python3 skills/weekly-report/scripts/append_index.py \
 | summarize.py 超时 | 缩小日期范围或增加 `--timeout 60` |
 | `@file` 报错 | 确认文件路径正确且文件存在 |
 | 文档创建成功但无法打开 | 检查 `doc_owner_open_ids` 是否正确 |
-| 文档标题显示 "Untitled" | 用了 `--api-version v2` + `--title`（v2 忽略 `--title`）。要么用 v1 默认，要么 markdown 首行加 `# 期望标题`，或事后 `docs +update --command str_replace --pattern "Untitled" --content "期望标题"` |
+| 文档标题显示 "Untitled" | 确认使用当前 `docs +create`，并显式传入 `--title`；不要再使用已移除的 `--markdown` 参数 |
 | subagent 返回空数据 | 该成员本周无提交。**不要为该成员写 per-user section**,team 总览的"活跃成员 X/Y"已经表达;只在分析报告必要时一句话提及"@xxx 未活跃" |
 | `index_doc.token is empty` | 先跑 `python3 scripts/init_index.py` 建索引文档 |
 | `could not locate anchor (callout) block_id` | 索引文档顶部 callout 被删了；恢复一个 callout 在最顶部，或 `init_index.py --force` 重建 |

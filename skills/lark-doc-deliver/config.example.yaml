@@ -18,9 +18,32 @@ lark:
     bot_open_id: "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
     member_type: "openid"
-    stay_put: false
+    stay_put: true
     remove_old_owner: false
     old_owner_perm: "full_access"
+
+# ------ 云盘归档 ------
+storage:
+  # 禁止留空：Agent 不得回退到云盘根目录。
+  root_folder_token: "YOUR_LIBRARY_ROOT_FOLDER_TOKEN"
+  default_folder_token: "YOUR_INBOX_FOLDER_TOKEN" # 无法分类时进入这里
+  folders:
+    inbox: "YOUR_INBOX_FOLDER_TOKEN"
+    product: "YOUR_PRODUCT_FOLDER_TOKEN"
+    engineering: "YOUR_ENGINEERING_FOLDER_TOKEN"
+    collaboration: "YOUR_COLLABORATION_FOLDER_TOKEN"
+    reports: "YOUR_REPORTS_FOLDER_TOKEN"
+    project_index: "YOUR_PROJECT_INDEX_FOLDER_TOKEN"
+    research: "YOUR_RESEARCH_FOLDER_TOKEN"
+    competitor_analysis: "YOUR_COMPETITOR_ANALYSIS_FOLDER_TOKEN"
+    candidates: "YOUR_CANDIDATES_FOLDER_TOKEN"
+    recruiting_operations: "YOUR_RECRUITING_OPERATIONS_FOLDER_TOKEN"
+    recruiting_exercises: "YOUR_RECRUITING_EXERCISES_FOLDER_TOKEN"
+    administration: "YOUR_ADMINISTRATION_FOLDER_TOKEN"
+    tools: "YOUR_TOOLS_FOLDER_TOKEN"
+  # 标题或用户要求明确命中别名时，选择对应 folder key；仍不确定则进入 default_folder_token。
+  folder_aliases:
+    competitor_analysis: ["竞品", "竞品分析", "竞争对手", "competitor", "competitive analysis"]
 
 # ------ 消息投递 ------
 delivery:

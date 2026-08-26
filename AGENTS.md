@@ -19,7 +19,7 @@
 
 ## lark-cli 使用要点
 
-- 大内容传递用 `@file`（相对路径）：`lark-cli docs +create --markdown @report.md`
+- 大内容传递用 `@file`（相对路径）：`lark-cli docs +create --content @report.md --doc-format markdown`
 - `im +messages-send` 的 `--markdown` 不支持 `@file`，用 `$(cat file)` 传递
 - 原始 API 调用：`lark-cli api <METHOD> <path> --data '<json>' --as <bot|user>`
 - 分页：`--page-all --page-size 50`
@@ -29,6 +29,7 @@
 - **文档搜索**（`doc-summary`）：`--as user`（搜索 API 仅支持 user_access_token）
 - **企业版文档创建 / 权限管理 / 消息投递**（`lark-doc-deliver`、`weekly-report`、`progress-report`）：`--as bot`
 - **个人版文档创建**（`lark-doc-personal`）：必须 `--as user`；bot 创建的文档会落在 app 云空间，跨空间 move/transfer 在个人版不可行
+- **企业版个人文档归档**：所有 bot/agent 新建文档必须显式创建到顶层 `storage` / `lark.doc.folder_token` 指定的云盘文件夹；禁止落云盘根目录。无法分类时进入配置的 `00_收件箱`。转移所有权必须 `stay_put=true`，并回读所有者和目标文件夹验证。
 
 ## 开发规范
 

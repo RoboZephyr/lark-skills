@@ -60,37 +60,28 @@ cd /tmp
 ```bash
 lark-cli docs +create \
   --title "<title>" \
-  --markdown @lark_personal_temp.md \
+  --content @lark_personal_temp.md \
+  --doc-format markdown \
   --as user
 ```
+
+如果调用方提供了 `folder_token`，在创建命令中同时加入 `--parent-token "<folder_token>"`，直接创建到目标文件夹。
 
 从输出 JSON 提取：
-- `doc_url`（路径：`.data.doc_url`）
-- `doc_id`（路径：`.data.doc_id`）
+- `doc_url`（优先路径：`.data.document.url`；兼容路径：`.data.doc_url` / `.data.url`）
+- `document_id`（优先路径：`.data.document.document_id`；兼容路径：`.data.doc_id` / `.data.document_id`）
 
-### Step 4（可选）: 移动到指定文件夹
-
-如果调用方提供了 `folder_token`：
-
-```bash
-lark-cli drive +move \
-  --file-token <doc_id> \
-  --type docx \
-  --folder-token <folder_token> \
-  --as user
-```
-
-### Step 5: 清理
+### Step 4: 清理
 
 ```bash
 rm -f /tmp/lark_personal_temp.md
 ```
 
-### Step 6: 输出结果
+### Step 5: 输出结果
 
 ```
 doc_url: <doc_url>
-doc_id: <doc_id>
+document_id: <document_id>
 owner: <userOpenId from auth status>
 ```
 

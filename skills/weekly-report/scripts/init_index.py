@@ -57,7 +57,7 @@ def _run_lark(cmd, stdin_data=None, check=True):
     return r.stdout, parsed
 
 
-def create_doc(xml_content, as_identity="bot"):
+def create_doc(xml_content, as_identity="bot", parent_token=""):
     """Create a doc via lark-cli docs +create; returns (doc_token, doc_url)."""
     cmd = [
         "lark-cli", "docs", "+create",
@@ -66,6 +66,12 @@ def create_doc(xml_content, as_identity="bot"):
         "--doc-format", "xml",
         "--content", "-",  # read XML from stdin
     ]
+    if not parent_token:
+        raise SystemExit(
+            "lark.index_doc.folder_token / lark.doc.folder_token is empty; "
+            "refusing to create in Drive root"
+        )
+    cmd.extend(["--parent-token", parent_token])
     _, data = _run_lark(cmd, stdin_data=xml_content)
     if not data or not data.get("ok"):
         raise SystemExit(f"create doc returned not ok: {data}")
@@ -112,7 +118,7 @@ def find_anchor_block_id(xml):
 
 
 def transfer_owner(doc_token, new_owner_id, member_type="openid", as_identity="bot",
-                   stay_put=False, remove_old_owner=False, old_owner_perm="full_access"):
+                   stay_put=True, remove_old_owner=False, old_owner_perm="full_access"):
     """Hand ownership of the doc to the configured user.
 
     transfer_owner is gated as high-risk-write — must pass --yes or lark-cli
@@ -166,6 +172,53 @@ def grant_full_access(doc_token, bot_open_id, as_identity="bot"):
     return data
 
 
+def _response_data(payload):
+    """Return a lark-cli response's data object, tolerating unwrapped fixtures."""
+    if not isinstance(payload, dict):
+        return {}
+    data = payload.get("data")
+    return data if isinstance(data, dict) else payload
+
+
+def verify_doc_archive(doc_token, parent_token, owner_id, as_identity="bot"):
+    """Verify both the transferred owner and the document's target folder."""
+    meta_cmd = [
+        "lark-cli", "drive", "metas", "batch_query",
+        "--user-id-type", "open_id",
+        "--data", json.dumps({
+            "request_docs": [{"doc_token": doc_token, "doc_type": "docx"}],
+            "with_url": True,
+        }),
+        "--as", as_identity,
+    ]
+    _, meta_payload = _run_lark(meta_cmd)
+    meta_data = _response_data(meta_payload)
+    metas = meta_data.get("metas") or []
+    meta = next((item for item in metas if item.get("doc_token") == doc_token), None)
+    actual_owner = meta.get("owner_id") if meta else None
+    if actual_owner != owner_id:
+        raise SystemExit(
+            f"owner verification failed for {doc_token}: "
+            f"expected {owner_id}, got {actual_owner or '(missing)'}"
+        )
+
+    list_cmd = [
+        "lark-cli", "drive", "files", "list",
+        "--folder-token", parent_token,
+        "--page-all",
+        "--page-size", "200",
+        "--as", as_identity,
+    ]
+    _, list_payload = _run_lark(list_cmd)
+    list_data = _response_data(list_payload)
+    files = list_data.get("files") or []
+    if not any(item.get("token") == doc_token for item in files):
+        raise SystemExit(
+            f"folder verification failed for {doc_token}: "
+            f"not found under {parent_token}"
+        )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="skills/weekly-report/config.yaml",
@@ -198,17 +251,30 @@ def main():
     owner_ids = perms.get("doc_owner_open_ids", [])
     bot_id = perms.get("bot_open_id", "")
     member_type = perms.get("member_type", "openid")
+    doc_cfg = lark.get("doc", {})
+    index_folder_token = idx.get("folder_token") or doc_cfg.get("folder_token") or ""
 
     if not owner_ids:
         raise SystemExit("lark.permissions.doc_owner_open_ids is empty")
     if not bot_id:
         raise SystemExit("lark.permissions.bot_open_id is missing")
+    if perms.get("stay_put") is not True:
+        raise SystemExit("lark.permissions.stay_put must be true")
+    if not index_folder_token:
+        raise SystemExit(
+            "lark.index_doc.folder_token / lark.doc.folder_token is empty; "
+            "refusing to create in Drive root"
+        )
 
     xml = TEMPLATE_XML.format(title=args.title)
 
     print(f"➤ creating index doc (title={args.title!r}, as={args.as_identity})",
           file=sys.stderr)
-    doc_token, doc_url = create_doc(xml, as_identity=args.as_identity)
+    doc_token, doc_url = create_doc(
+        xml,
+        as_identity=args.as_identity,
+        parent_token=index_folder_token,
+    )
     print(f"  ✓ created: token={doc_token} url={doc_url}", file=sys.stderr)
 
     print(f"➤ transferring owner → {owner_ids[0]}", file=sys.stderr)
@@ -217,13 +283,22 @@ def main():
         owner_ids[0],
         member_type=member_type,
         as_identity=args.as_identity,
-        stay_put=perms.get("stay_put", False),
+        stay_put=True,
         remove_old_owner=perms.get("remove_old_owner", False),
         old_owner_perm=perms.get("old_owner_perm", "full_access"),
     )
 
     print(f"➤ re-granting bot full_access ({bot_id})", file=sys.stderr)
     grant_full_access(doc_token, bot_id, as_identity=args.as_identity)
+
+    print("➤ verifying owner and target folder", file=sys.stderr)
+    verify_doc_archive(
+        doc_token,
+        index_folder_token,
+        owner_ids[0],
+        as_identity=args.as_identity,
+    )
+    print("  ✓ owner and target folder verified", file=sys.stderr)
 
     print(f"➤ fetching with-ids to find anchor (top callout) block_id", file=sys.stderr)
     xml_with_ids = fetch_with_ids(doc_token, as_identity=args.as_identity)

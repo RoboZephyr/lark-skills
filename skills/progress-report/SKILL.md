@@ -167,14 +167,16 @@ python3 skills/progress-report/scripts/collect_progress.py \
 cp /tmp/progress_report.md ./progress_report.md
 lark-cli docs +create \
   --title "项目进度同步 (<scope>)" \
-  --markdown @progress_report.md \
+  --content @progress_report.md \
+  --doc-format markdown \
+  --parent-token "<继承后的 lark.doc.folder_token>" \
   --as bot
 ```
 
 从输出 JSON 提取：
 
-- `doc_url`: `.data.doc_url`
-- `document_id`: `.data.doc_id`
+- `doc_url`: 优先 `.data.document.url`，兼容 `.data.doc_url` / `.data.url`
+- `document_id`: 优先 `.data.document.document_id`，兼容 `.data.doc_id` / `.data.document_id`
 
 ### Step 6: 自动权限转移
 
@@ -213,6 +215,8 @@ lark-cli drive permission.members create \
 ```
 
 权限操作失败时记录错误；如果 owner transfer 失败，不要发送群消息，避免投递不可访问的文档。
+
+`lark.doc.folder_token` 为空时停止创建，禁止回退到云盘根目录。`stay_put` 必须为 `true`；转移后先用 `drive metas batch_query --user-id-type open_id --as bot` 确认 `owner_id` 等于第一个 `doc_owner_open_ids`，再用 `drive files list --folder-token <lark.doc.folder_token> --page-all --page-size 200 --as bot` 确认 `document_id` 仍在其中。任一验证失败时不要发送消息。
 
 ### Step 7: 消息投递
 
@@ -291,3 +295,4 @@ lark-cli im +messages-send --user-id "<open_id>" --markdown "$(cat progress_mess
 8. 飞书文档和消息投递使用 bot 身份。
 9. 群消息面向团队协作，不面向代码审计；把可追溯证据放进文档或本地报告，不要把第一屏写成提交清单。
 10. 群消息的验收标准是「没读过内部文档的人也能看懂」：默认 200 字上下，零内部行话与编号；发送前先给用户 review 一版，用户确认后再投递。
+11. 创建飞书文档必须显式使用继承后的 `lark.doc.folder_token`；禁止落云盘根目录，转移所有权后必须回读所有者和目标文件夹验证。

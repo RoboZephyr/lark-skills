@@ -54,12 +54,12 @@ lark:
     bot_open_id: "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
     member_type: "openid"
-    stay_put: false
+    stay_put: true
     remove_old_owner: false
     old_owner_perm: "full_access"
 
   doc:
-    folder_token: ""
+    folder_token: "YOUR_WEEKLY_REPORT_FOLDER_TOKEN" # 周报归档目录，禁止留空
 
 # ------ 消息投递 ------
 delivery:
