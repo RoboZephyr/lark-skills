@@ -1,12 +1,18 @@
 ---
 name: lark-doc-deliver
-description: 通用飞书文档创建、云盘分类归档、权限转移和消息投递。接收 markdown 文件和标题，把文档创建到指定云盘文件夹（无法分类时进入收件箱），转移所有权并发送通知。当其他 Skill 需要将内容发布到飞书时调用。
+description: 企业版飞书个人文档的统一创建与交付入口。凡 Agent 要新建或发布 Docx（包括由 lark-doc 或其他 Skill 生成的 XML/Markdown 草稿）时使用：先分类到已登记的云盘文件夹，无法分类则进入收件箱，再按配置处理所有权和通知。团队知识库节点不走本 Skill。
 ---
 
 # Lark Doc Deliver (CC / Codex)
 
-> 通用能力 Skill：接收 markdown 内容，创建飞书文档，转移文档权限，发送消息通知。
+> 通用能力 Skill：接收 XML 或 Markdown 内容，创建飞书文档，转移文档权限，发送消息通知。
 > 可被其他 Skill 调用，也可独立使用。
+
+## 触发与创建边界
+
+- 在企业版账号中，Agent 新建或发布个人飞书 Docx 时，本 Skill 负责最终创建。`lark-doc` 可以负责正文创作和 XML 校验，但不得绕过本 Skill 直接执行无目录的 `docs +create`。
+- 所有 `docs +create` 都必须显式传入经本 Skill 校验的 `--parent-token`。禁止先落云盘根目录再依赖事后整理。
+- 用户明确要求创建团队知识库节点时改用 `lark-wiki`；不要把团队知识库内容写进个人文档库。
 
 ## Prerequisites
 
@@ -20,12 +26,16 @@ description: 通用飞书文档创建、云盘分类归档、权限转移和消�
 
 | 参数 | 说明 | 示例 |
 |---|---|---|
-| `markdown_file` | 要创建为飞书文档的 markdown 文件路径 | `/tmp/report.md` |
+| `content_file` | 要创建为飞书文档的 XML 或 Markdown 文件路径 | `/tmp/report.xml` |
+| `doc_format` | `xml` 或 `markdown`；使用 `content_file` 时必须显式提供 | `xml` |
+| `markdown_file`（兼容） | 旧调用参数，等同于 `content_file` 且 `doc_format=markdown` | `/tmp/report.md` |
 | `title` | 飞书文档标题 | `团队技术设计文档汇总 (01.11 — 04.11)` |
 | `message_file`（可选） | 消息投递内容的 markdown 文件路径，不提供则用文档链接作为消息 | `/tmp/message.md` |
 | `config_override`（可选） | 覆盖默认 config.yaml 的配置路径 | `skills/doc-summary/scenarios/tech-design.yaml` |
 | `folder_key`（可选） | `storage.folders` 中的分类键；无法判断时省略 | `competitor_analysis` |
 | `folder_token`（可选） | 显式目标文件夹 token，优先级高于 `folder_key`，且必须已登记在 `storage` 中 | `YOUR_TARGET_FOLDER_TOKEN` |
+
+调用方仍传 `markdown_file` 时，先将其规范化为 `content_file=<markdown_file>`、`doc_format=markdown`。除此之外，缺少 `content_file` 或 `doc_format` 时停止，不要猜测格式。
 
 ## Execution Flow
 
@@ -54,6 +64,7 @@ description: 通用飞书文档创建、云盘分类归档、权限转移和消�
 - 零号台资料按工作性质分流：ICP、产品假设、产品发现、标准测试剧本和统一任务进入 `project_index`；竞品计划、分析和体验记录进入 `competitor_analysis`；上线、交付、发布、内测和验收清单进入 `zero_stage_delivery`。这些专用规则优先于泛化的 `product` 别名。
 - 团队与招聘目录采用平铺结构：候选人面试记录进入 `candidates`；招聘流程、招聘作业和其他团队管理资料进入 `team`。Agent、工具和自动化类技术资料进入 `engineering`。
 - 具体业务短语优先于泛词：竞品分析进入 `competitor_analysis`，行业/产品研究进入 `research`，候选人面试进入 `candidates`，招聘流程/作业进入 `team`；不能因为标题同时含有“产品”或“工程”而判成歧义。
+- “产业体系地图”“行业地图”进入 `research`；“商业模式地图”进入 `competitor_analysis`。这些标题即使没有出现“研究”或“竞品”字样，也按其明确业务用途分类。
 - `archive` 仅在用户/调用方明确要求归档，或显式传入该 `folder_key` / `folder_token` 时使用；新文档不得仅凭宽泛标题自动进入归档。
 - 不再维护通用“产研协作”分类。只有“协作”“流程”“规范”等宽泛词且没有更明确分类时，进入 `storage.default_folder_token`。
 - 用户明确说“归档到某分类”时，同时匹配分类键和别名；例如“竞品分析”命中 `competitor_analysis`。仅有一个明确命中时才分类；仍有歧义时进入收件箱。
@@ -64,13 +75,13 @@ description: 通用飞书文档创建、云盘分类归档、权限转移和消�
 ### Step 3: 创建飞书文档
 
 ```bash
-# 将源文件复制到工作目录
-cp <markdown_file> ./lark_deliver_temp.md
+# 将源文件复制到工作目录；XML 使用 .xml，Markdown 使用 .md
+cp <content_file> ./lark_deliver_temp.<xml_or_md>
 
 lark-cli docs +create \
   --title "<title>" \
-  --content @lark_deliver_temp.md \
-  --doc-format markdown \
+  --content @lark_deliver_temp.<xml_or_md> \
+  --doc-format <doc_format> \
   --parent-token "<target_folder_token>" \
   --as <lark.identity>
 ```
@@ -79,7 +90,7 @@ lark-cli docs +create \
 - `doc_url`（优先路径: `.data.document.url`；兼容路径: `.data.doc_url` / `.data.url`）
 - `document_id`（优先路径: `.data.document.document_id`；兼容路径: `.data.doc_id` / `.data.document_id`，用于权限操作）
 
-清理临时文件：`rm -f ./lark_deliver_temp.md`
+清理临时文件：`rm -f ./lark_deliver_temp.xml ./lark_deliver_temp.md`
 
 ### Step 4: 自动权限转移
 
@@ -188,6 +199,7 @@ errors: <如有失败，列出>
 9. 禁止在云盘根目录创建；无法判断分类时必须使用 `storage.default_folder_token`（00_收件箱）
 10. `stay_put` 必须为 `true`，且权限转移后必须回读所有者和目标文件夹验证
 11. 当前周执行资料与历史周报必须分流：`weekly_demand_management` 放当前需求/周计划，`reports` 只放旧式团队/技术周报与历史会议记录
+12. 企业版个人 Docx 的最终创建必须走本 Skill；禁止无 `--parent-token` 的 `docs +create`
 
 ## Troubleshooting
 

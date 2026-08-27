@@ -39,6 +39,10 @@ class LarkDocRoutingConfigTest(unittest.TestCase):
             & folders.keys()
         )
         self.assertTrue(aliases.keys() <= folders.keys())
+        self.assertTrue(
+            {"产业体系地图", "行业地图"} <= set(aliases["research"])
+        )
+        self.assertIn("商业模式地图", aliases["competitor_analysis"])
 
     def test_progress_report_overrides_historical_weekly_report_folder(self) -> None:
         progress = load_yaml("skills/progress-report/config.example.yaml")
