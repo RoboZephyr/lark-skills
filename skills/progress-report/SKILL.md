@@ -7,7 +7,7 @@ description: Generate a plain-language, decision-oriented engineering progress u
 
 生成一份面向团队同步的工程进度报告：从 GitHub 仓库最近代码改动或指定 PR 采集数据，先形成可追溯事实底稿，再改写成平白、面向决策的同步内容，说明“做了什么 / 为什么这样做 / 对工作流有什么意义 / 还有什么待确认 / 下一步是什么”。根据用户请求或 `output.mode` 决定只本地输出、只发送飞书消息、只创建飞书文档，或创建文档后投递消息。
 
-除按需调用外，本 skill 还承载无人值守的**定时团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`，以「过去24小时」滚动窗口采集（与上一期无缝衔接），`message_only` 私发负责人并插入 `lark.daily_log_doc` 留档文档最前。
+除按需调用外，本 skill 还承载无人值守的**定时团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`，由 `codex exec` 执行本 skill，以「过去24小时」滚动窗口采集（与上一期无缝衔接），`message_only` 私发负责人并插入 `lark.daily_log_doc` 留档文档最前。
 
 ## Prerequisites
 
@@ -149,6 +149,16 @@ python3 skills/progress-report/scripts/collect_progress.py \
 - 群消息默认精简到 200 字上下、一屏读完；完整技术细节留给本地报告或飞书文档，不要都塞进消息
 - 不要把群消息写成 changelog、commit digest 或测试日志；SHA、文件清单、OQ 编号只作为证据或链接出现
 - 如果代码事实不足以支撑“为什么”和“意义”，保留为待确认或请用户补上下文，不要编造
+- 飞书 Markdown 正文禁止出现 ASCII `~`。飞书会把它识别为删除线边界；PR 范围使用 `–` 或“至”，例如 `[#48](...)–[#55](...)`。
+
+任何 Markdown 写入飞书消息或文档前，必须先保存为本地文件并执行：
+
+```bash
+python3 skills/progress-report/scripts/validate_lark_markdown.py --fix <markdown-file>
+python3 skills/progress-report/scripts/validate_lark_markdown.py <markdown-file>
+```
+
+第二条命令退出码不是 `0` 时禁止投递；修正后重新验证。该检查同时适用于 `message_only`、`doc_only`、`doc_and_message` 和定时日报留档。
 
 ### Step 4: 本地输出
 
@@ -295,4 +305,5 @@ lark-cli im +messages-send --user-id "<open_id>" --markdown "$(cat progress_mess
 8. 飞书文档和消息投递使用 bot 身份。
 9. 群消息面向团队协作，不面向代码审计；把可追溯证据放进文档或本地报告，不要把第一屏写成提交清单。
 10. 群消息的验收标准是「没读过内部文档的人也能看懂」：默认 200 字上下，零内部行话与编号；发送前先给用户 review 一版，用户确认后再投递。
-11. 创建飞书文档必须显式使用继承后的 `lark.doc.folder_token`；禁止落云盘根目录，转移所有权后必须回读所有者和目标文件夹验证。
+11. 所有飞书 Markdown 投递前必须通过 `validate_lark_markdown.py`；PR 范围不得使用 ASCII `~`。
+12. 创建飞书文档必须显式使用继承后的 `lark.doc.folder_token`；禁止落云盘根目录，转移所有权后必须回读所有者和目标文件夹验证。

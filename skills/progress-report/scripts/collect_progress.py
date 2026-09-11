@@ -65,7 +65,7 @@ def day_bounds(since_day, until_day) -> tuple[str, str, str]:
     tz = datetime.now().astimezone().tzinfo
     start = datetime(since_day.year, since_day.month, since_day.day, tzinfo=tz)
     end = datetime(until_day.year, until_day.month, until_day.day, 23, 59, 59, tzinfo=tz)
-    return utc_ts(start), utc_ts(end), f"{since_day.isoformat()} ~ {until_day.isoformat()}"
+    return utc_ts(start), utc_ts(end), f"{since_day.isoformat()} – {until_day.isoformat()}"
 
 
 def parse_range(label: str, default_days: int) -> tuple[str, str, str]:
@@ -74,7 +74,7 @@ def parse_range(label: str, default_days: int) -> tuple[str, str, str]:
     text = (label or "").strip()
     if re.fullmatch(r"(?:过去|最近)?\s*24\s*(?:小时|h)", text, re.IGNORECASE):
         start = now - timedelta(hours=24)
-        label_text = f"{start.strftime('%Y-%m-%d %H:%M')} ~ {now.strftime('%Y-%m-%d %H:%M')}（过去 24 小时）"
+        label_text = f"{start.strftime('%Y-%m-%d %H:%M')} – {now.strftime('%Y-%m-%d %H:%M')}（过去 24 小时）"
         return utc_ts(start), utc_ts(now), label_text
     m = re.fullmatch(
         r"(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})\s*[~到至]\s*(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})", text
@@ -87,7 +87,7 @@ def parse_range(label: str, default_days: int) -> tuple[str, str, str]:
         end = datetime.strptime(m.group(4), "%Y-%m-%d").replace(
             hour=int(m.group(5)), minute=int(m.group(6)), tzinfo=tz
         )
-        label_text = f"{start.strftime('%Y-%m-%d %H:%M')} ~ {end.strftime('%Y-%m-%d %H:%M')}"
+        label_text = f"{start.strftime('%Y-%m-%d %H:%M')} – {end.strftime('%Y-%m-%d %H:%M')}"
         return utc_ts(start), utc_ts(end), label_text
     m = re.fullmatch(r"(\d{4}-\d{2}-\d{2})(?:\s*[~到至]\s*(\d{4}-\d{2}-\d{2}))?", text)
     if m:

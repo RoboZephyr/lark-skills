@@ -131,11 +131,11 @@ $weekly-report 上周
 $progress-report 最近 3 天
 ```
 
-**无人值守团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`，以「过去 24 小时」滚动窗口（21:00 → 次日 21:00，天与天无缝衔接不漏数据）生成团队日报，私发给 `delivery.targets` 配置的负责人，并插入到 `lark.daily_log_doc` 留档文档最前（最新在上）。
+**无人值守团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`，由 `codex exec` 执行 `$progress-report`。任务以「过去 24 小时」滚动窗口（21:00 → 次日 21:00，天与天无缝衔接不漏数据）生成团队日报，私发给 `delivery.targets` 配置的负责人，并插入到 `lark.daily_log_doc` 留档文档最前（最新在上）。
 
 该任务按无人值守设计了失败兜底：每次尝试前先等网络就绪（覆盖 Mac 刚被唤醒的场景），运行时用 `caffeinate -i` 阻止机器中途休眠，单次运行超时（默认 20 分钟）会杀掉进程并重试，最多 3 次；三次都失败会私发一条飞书告警说明原因和日志路径，避免漏发被静默。相关阈值可在 `launchd/weekly-report.env` 里覆盖，见 `weekly-report.env.example`。
 
-> **关于机器休眠**：macOS 的 `StartCalendarInterval` 在机器睡眠时会靠 DarkWake 把任务叫起来，但 DarkWake 会在维护窗口结束时立刻睡回去——任务刚起来就断网。脚本因此在**第一步**就持有 `caffeinate -is` 断言（而不是等到调用 claude 时），把机器按住到本次运行结束，跑完自动释放，不影响平时休眠。
+> **关于机器休眠**：macOS 的 `StartCalendarInterval` 在机器睡眠时会靠 DarkWake 把任务叫起来，但 DarkWake 会在维护窗口结束时立刻睡回去——任务刚起来就断网。脚本因此在**第一步**就持有 `caffeinate -is` 断言（而不是等到调用 Codex 时），把机器按住到本次运行结束，跑完自动释放，不影响平时休眠。
 >
 > 如果机器晚上是关机而不是休眠，再补一条唤醒计划：`sudo pmset repeat wakeorpoweron MTWRFSU 20:55:00`。注意这条只是每天定点唤醒，**不阻止休眠**；若 `pmset -g custom` 里的 `sleep` 值很小（比如 1 分钟），唤醒后可能在任务触发前就又睡了，此时应适当调大 `sleep`。
 
