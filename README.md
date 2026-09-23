@@ -46,6 +46,14 @@ Codex 入口会引用当前 clone 中的 Skill、脚本和配置；请保留该�
 
 ## 环境准备
 
+Python 数据采集脚本需要 `ruamel.yaml`。在独立虚拟环境中安装，运行脚本前激活：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
 ```bash
 # 安装 lark-cli
 npm install -g @larksuite/cli
@@ -297,6 +305,19 @@ lark-skills/
 ```
 
 `config.yaml` 是本地真实配置，已被 `.gitignore` 忽略；提交到仓库的是 `config.example.yaml` 和可复用执行说明。
+
+---
+
+## 本地检查
+
+安装并激活上面的 Python 虚拟环境后，在仓库根目录运行：
+
+```bash
+python -m unittest discover -s tests
+bash tests/test_codex_install.sh
+```
+
+这些测试使用本地临时数据；安装器测试也在临时目录中运行，不会修改真实 Skill 安装或发送飞书消息。
 
 ---
 

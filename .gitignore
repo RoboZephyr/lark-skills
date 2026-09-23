@@ -1,5 +1,6 @@
 *.log
 __pycache__/
+.venv/
 .DS_Store
 
 # 真实配置含敏感信息，只提交 example
