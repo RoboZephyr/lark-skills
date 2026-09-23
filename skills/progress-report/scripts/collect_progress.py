@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import http.client
 import json
 import os
 import re
@@ -144,6 +146,39 @@ def gh_token(cfg: dict) -> str:
     raise SystemExit("GitHub token not found. Set GITHUB_TOKEN, github.token, or run gh auth login.")
 
 
+def github_request(token: str, endpoint: str, params=None, payload=None):
+    """Retry a single read, including interruptions while reading its body."""
+    url = "https://api.github.com" + endpoint
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, data=json.dumps(payload).encode() if payload else None)
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("Content-Type", "application/json")
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            if error.code not in (429, 500, 502, 503, 504) or attempt == 3:
+                raise RuntimeError(f"GitHub {endpoint}: HTTP {error.code}") from error
+            delay = min(60, int(error.headers.get("Retry-After", "0")))
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError,
+                http.client.IncompleteRead, http.client.RemoteDisconnected) as error:
+            if attempt == 3:
+                raise RuntimeError(f"GitHub {endpoint}: {type(error).__name__} after 4 attempts") from error
+            delay = 0
+        print(f"[collect] retry {attempt + 1}/3: {endpoint}", file=sys.stderr, flush=True)
+        time.sleep(max(delay, 1.5 * (2 ** attempt)))
+
+
+def github_graphql(token: str, query: str, variables: dict):
+    result = github_request(token, "/graphql", payload={"query": query, "variables": variables})
+    if result.get("errors") or not result.get("data"):
+        raise RuntimeError(f"GitHub GraphQL: {result.get('errors', 'missing data')}")
+    return result["data"]
+
+
 def github_get(token: str, endpoint: str, params: dict | None = None, paginate: bool = True):
     results = []
     page = 1
@@ -151,31 +186,113 @@ def github_get(token: str, endpoint: str, params: dict | None = None, paginate: 
         p = dict(params or {})
         if paginate:
             p.update({"per_page": 100, "page": page})
-        url = "https://api.github.com" + endpoint
-        if p:
-            url += "?" + urllib.parse.urlencode(p)
-        req = urllib.request.Request(url)
-        req.add_header("Authorization", f"token {token}")
-        req.add_header("Accept", "application/vnd.github+json")
-        # 本机网络对 api.github.com 有间歇性连接重置,瞬时错误需重试
-        for attempt in range(5):
-            try:
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                break
-            except urllib.error.HTTPError as e:
-                body = e.read().decode("utf-8", errors="replace")[:300]
-                raise RuntimeError(f"GitHub API {endpoint} failed: HTTP {e.code}: {body}") from e
-            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
-                if attempt == 4:
-                    raise RuntimeError(f"GitHub API {endpoint} failed after retries: {e}") from e
-                time.sleep(1.5 * (attempt + 1))
+        data = github_request(token, endpoint, p)
         if not paginate or not isinstance(data, list):
             return data
         results.extend(data)
         if len(data) < 100:
             return results
         page += 1
+
+
+COMMIT_FIELDS = """
+    nodes { oid url message committedDate author { name email user { login } } }
+    pageInfo { hasNextPage endCursor }
+"""
+BRANCH_QUERY = """
+query($owner: String!, $repo: String!, $cursor: String, $since: GitTimestamp!, $until: GitTimestamp!) {
+  repository(owner:$owner, name:$repo) {
+    refs(refPrefix:"refs/heads/", first:30, after:$cursor) {
+      nodes { name target { ... on Commit {
+        oid history(first:50, since:$since, until:$until) { %s }
+      } } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+""" % COMMIT_FIELDS
+HISTORY_QUERY = """
+query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $since: GitTimestamp!, $until: GitTimestamp!) {
+  repository(owner:$owner, name:$repo) {
+    object(oid:$oid) { ... on Commit {
+      history(first:100, after:$cursor, since:$since, until:$until) { %s }
+    } }
+  }
+}
+""" % COMMIT_FIELDS
+
+
+def collect_branch_commits(token, repo, since, until, by_alias, include_all):
+    commits = {}
+
+    def add(branch, commit):
+        member = commit_member(commit, by_alias)
+        if member and in_window(commit_timestamp(commit), since, until):
+            item = normalize_commit(repo, branch, commit, member)
+            commits[item["sha"]] = item
+
+    if not include_all:
+        for commit in github_get(token, f"/repos/{repo}/commits", {"since": since, "until": until}):
+            add("default", commit)
+        return commits
+    owner, name = repo.split("/", 1)
+    variables = {"owner": owner, "repo": name, "since": since, "until": until, "cursor": None}
+    branch_count = 0
+    while True:
+        data = github_graphql(token, BRANCH_QUERY, variables)
+        refs = data["repository"]["refs"]
+        for ref in refs["nodes"]:
+            target = ref["target"]
+            history = target["history"]
+            while True:
+                for node in history["nodes"]:
+                    author = node.get("author") or {}
+                    add(ref["name"], {"sha": node["oid"], "html_url": node["url"],
+                        "author": author.get("user"), "commit": {"message": node["message"],
+                        "author": author, "committer": {"date": node["committedDate"]}}})
+                if not history["pageInfo"]["hasNextPage"]:
+                    break
+                # Pin history pagination to the observed SHA, even if the branch moves.
+                history_vars = {**variables, "oid": target["oid"], "cursor": history["pageInfo"]["endCursor"]}
+                history = github_graphql(token, HISTORY_QUERY, history_vars)["repository"]["object"]["history"]
+            branch_count += 1
+        if not refs["pageInfo"]["hasNextPage"]:
+            break
+        variables = {**variables, "cursor": refs["pageInfo"]["endCursor"]}
+    print(f"[collect] {repo}: {branch_count} branches, {len(commits)} matching commits", file=sys.stderr, flush=True)
+    return commits
+
+
+def recent_pull_requests(token, repo, since):
+    """Apply the window cutoff while paging, before downloading older pages."""
+    results = {}
+    page = 1
+    while True:
+        items = github_get(token, f"/repos/{repo}/pulls", {
+            "state": "all", "sort": "updated", "direction": "desc", "per_page": 30, "page": page,
+        }, paginate=False)
+        for pr in items:
+            if (pr.get("updated_at") or "") < since:
+                return list(results.values())
+            results[pr["number"]] = pr
+        if len(items) < 30:
+            return list(results.values())
+        page += 1
+
+
+def cached_read(cache_dir, key, fetch):
+    if not cache_dir:
+        return fetch()
+    digest = hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()
+    path = Path(cache_dir) / f"{digest}.json"
+    if path.exists():
+        return json.loads(path.read_text())
+    result = fetch()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    temporary.replace(path)
+    return result
 
 
 def aliases_for(username: str, gh_map: dict) -> set[str]:
@@ -343,7 +460,8 @@ def fetch_pr_activity(token: str, pr: dict, since: str, until: str) -> dict:
     number = pr["number"]
     commits = github_get(token, f"/repos/{owner}/{repo}/pulls/{number}/commits")
     activity = classify_pr_activity(pr, commits, [], since, until)
-    if not activity["active"] and in_window(pr.get("updated_at"), since, until):
+    # Later updates do not erase reviews/comments inside a backfill window.
+    if not activity["active"] and (pr.get("updated_at") or "") >= since:
         timeline = github_get(token, f"/repos/{owner}/{repo}/issues/{number}/timeline")
         activity = classify_pr_activity(pr, commits, timeline, since, until)
     return activity
@@ -355,15 +473,19 @@ def collect_pr_activity(
     since: str,
     until: str,
     workers: int = 8,
+    cache_dir: str | None = None,
 ) -> list[dict]:
     evidence = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
-            pool.submit(fetch_pr_activity, token, pr, since, until): pr
+            pool.submit(cached_read, cache_dir, ["pr-v2", pr, since, until],
+                        lambda pr=pr: fetch_pr_activity(token, pr, since, until)): pr
             for pr in prs
         }
         for future in as_completed(futures):
             evidence.append(future.result())
+            if len(evidence) % 10 == 0 or len(evidence) == len(prs):
+                print(f"[collect] PR evidence {len(evidence)}/{len(prs)}", file=sys.stderr, flush=True)
     return sorted(
         evidence,
         key=lambda item: item["pr"].get("updated_at", ""),
@@ -576,6 +698,7 @@ def main():
     parser.add_argument("--pr", default="", help="GitHub PR URL, owner/repo#number, or number.")
     parser.add_argument("--output", default="/tmp/progress_report.md")
     parser.add_argument("--raw-output", default="/tmp/progress_report_raw.json")
+    parser.add_argument("--cache-dir", help="Reuse successful reads for this exact time window on retry")
     args = parser.parse_args()
 
     cfg = load_config(Path(args.config))
@@ -589,9 +712,8 @@ def main():
     by_alias, members = member_index(cfg)
     include_all = bool(report_cfg.get("include_all_branches", True))
     include_open_prs = bool(report_cfg.get("include_open_prs", True))
-    max_branches = int(report_cfg.get("max_branches_per_repo", 80))
     max_items = int(report_cfg.get("max_commits_per_section", 12))
-    github_workers = int(report_cfg.get("github_workers", 8))
+    github_workers = int(report_cfg.get("github_workers", 4))
 
     if args.pr:
         repo_full, pr_number = parse_pr_ref(args.pr, repos)
@@ -619,47 +741,32 @@ def main():
 
     commits_by_sha = {}
     prs_by_key = {}
-    for repo_full in repos:
-        owner, repo = repo_full.split("/", 1)
-        branches = [{"name": ""}]
-        if include_all:
-            branches = github_get(token, f"/repos/{owner}/{repo}/branches")[:max_branches]
-        for branch in branches:
-            branch_name = branch.get("name") or ""
-            params = {"since": since, "until": until}
-            if branch_name:
-                params["sha"] = branch_name
-            for commit in github_get(token, f"/repos/{owner}/{repo}/commits", params):
-                member = commit_member(commit, by_alias)
-                if member:
-                    item = normalize_commit(repo_full, branch_name or "default", commit, member)
-                    commits_by_sha[item["sha"]] = item
-
-        pr_queries = [{
-            "state": "all",
-            "sort": "updated",
-            "direction": "desc",
-        }]
-        if include_open_prs:
-            pr_queries.append({
-                "state": "open",
-                "sort": "updated",
-                "direction": "desc",
-            })
-        for query in pr_queries:
-            for pr in github_get(token, f"/repos/{owner}/{repo}/pulls", query):
-                updated = pr.get("updated_at") or ""
-                if query["state"] == "all" and updated < since:
-                    break
-                if not should_include_pr(pr, since, until, include_open_prs):
-                    continue
-                key = (repo_full, pr["number"])
-                if key in prs_by_key:
-                    continue
+    def collect_repo(repo_full):
+        started = time.monotonic()
+        print(f"[collect] starting {repo_full}", file=sys.stderr, flush=True)
+        key = ["repo-v2", repo_full, since, until, by_alias, include_all, include_open_prs]
+        def fetch():
+            commits = collect_branch_commits(token, repo_full, since, until, by_alias, include_all)
+            prs = recent_pull_requests(token, repo_full, since)
+            if include_open_prs:
+                prs += github_get(token, f"/repos/{repo_full}/pulls", {"state": "open"})
+            candidates = {}
+            for pr in prs:
                 author = ((pr.get("user") or {}).get("login") or "").lower()
-                if author not in by_alias:
-                    continue
-                prs_by_key[key] = normalize_pr(repo_full, pr)
+                if author in by_alias and should_include_pr(pr, since, until, include_open_prs):
+                    candidates[pr["number"]] = normalize_pr(repo_full, pr)
+            return {"commits": commits, "prs": list(candidates.values())}
+        result = cached_read(args.cache_dir, key, fetch)
+        print(f"[collect] finished {repo_full} in {time.monotonic() - started:.1f}s", file=sys.stderr, flush=True)
+        return repo_full, result
+
+    with ThreadPoolExecutor(max_workers=int(report_cfg.get("repo_workers", 3))) as pool:
+        futures = [pool.submit(collect_repo, repo) for repo in repos]
+        for future in as_completed(futures):
+            repo_full, result = future.result()
+            commits_by_sha.update(result["commits"])
+            for pr in result["prs"]:
+                prs_by_key[(repo_full, pr["number"])] = pr
 
     candidate_prs = sorted(
         prs_by_key.values(),
@@ -672,6 +779,7 @@ def main():
         since,
         until,
         workers=github_workers,
+        cache_dir=args.cache_dir,
     )
     active_pr_evidence = [item for item in pr_activity if item["active"]]
     activity_commits_by_sha = build_activity_commit_index(

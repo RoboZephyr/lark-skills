@@ -139,7 +139,7 @@ $weekly-report 上周
 $progress-report 最近 3 天
 ```
 
-**无人值守团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`，由 `codex exec` 执行 `$progress-report`。任务以「过去 24 小时」滚动窗口（21:00 → 次日 21:00，天与天无缝衔接不漏数据）生成团队日报，私发给 `delivery.targets` 配置的负责人，并插入到 `lark.daily_log_doc` 留档文档最前（最新在上）。
+**无人值守团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`。脚本固定前一天 21:00 到当天 21:00 的窗口，按仓库通过 GraphQL 批量采集全部分支，再核验 PR 活动；`codex exec` 只负责本地正文改写。校验后私发给 `delivery.targets` 配置的负责人，并插入到 `lark.daily_log_doc` 留档文档最前（最新在上）。`.state/daily-report/` 保存采集缓存和实际投递回执；重试复用已完成阶段，成功必须通过消息和文档回读。补发使用 `./launchd/run-daily-team-report.sh --range 'YYYY-MM-DD 21:00至YYYY-MM-DD 21:00'`，加 `--prepare-only` 可先生成而不投递。
 
 该任务按无人值守设计了失败兜底：每次尝试前先等网络就绪（覆盖 Mac 刚被唤醒的场景），运行时用 `caffeinate -i` 阻止机器中途休眠，单次运行超时（默认 20 分钟）会杀掉进程并重试，最多 3 次；三次都失败会私发一条飞书告警说明原因和日志路径，避免漏发被静默。相关阈值可在 `launchd/weekly-report.env` 里覆盖，见 `weekly-report.env.example`。
 
