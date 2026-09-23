@@ -17,13 +17,6 @@ cd "$REPO_DIR"
 if command -v caffeinate >/dev/null 2>&1; then
   caffeinate -is -w $$ &
 fi
-if [ -z "${GITHUB_TOKEN:-}" ]; then
-  if [ -n "${GH_TOKEN:-}" ]; then
-    export GITHUB_TOKEN="$GH_TOKEN"
-  else
-    GITHUB_TOKEN="$("${GH_BIN:-gh}" auth token)"
-    export GITHUB_TOKEN
-  fi
-fi
-export CODEX_BIN="${CODEX_BIN:-$(command -v codex)}"
-exec "${PYTHON_BIN:-python3}" skills/progress-report/scripts/run_daily_report.py "$@"
+# Resolve credentials only if collection is needed. --help and --deliver-only
+# must also work without a GitHub login or Codex installed.
+exec "$REPO_DIR/scripts/python.sh" skills/progress-report/scripts/run_daily_report.py "$@"

@@ -134,11 +134,12 @@ def parse_pr_ref(value: str, repos: list[str]) -> tuple[str, int]:
 
 
 def gh_token(cfg: dict) -> str:
-    token = os.environ.get("GITHUB_TOKEN") or cfg.get("github", {}).get("token") or ""
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or cfg.get("github", {}).get("token") or ""
     if token:
         return token
     try:
-        r = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=10)
+        r = subprocess.run([os.environ.get("GH_BIN", "gh"), "auth", "token"],
+                           capture_output=True, text=True, timeout=10)
         if r.returncode == 0 and r.stdout.strip():
             return r.stdout.strip()
     except Exception:

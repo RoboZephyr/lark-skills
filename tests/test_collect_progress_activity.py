@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import unittest
+import os
 import http.client
 from unittest.mock import patch, MagicMock
 from pathlib import Path
@@ -62,6 +63,19 @@ def pull_request(**overrides) -> dict:
 
 
 class PullRequestActivityTest(unittest.TestCase):
+    def test_uses_gh_token_without_looking_up_credentials(self):
+        with patch.dict(os.environ, {"GH_TOKEN": "fixture-token"}, clear=True), \
+                patch.object(MODULE.subprocess, "run") as command:
+            self.assertEqual(MODULE.gh_token({}), "fixture-token")
+        command.assert_not_called()
+
+    def test_uses_configured_gh_binary(self):
+        response = MagicMock(returncode=0, stdout="fixture-token\n")
+        with patch.dict(os.environ, {"GH_BIN": "/fixture/bin/gh"}, clear=True), \
+                patch.object(MODULE.subprocess, "run", return_value=response) as command:
+            self.assertEqual(MODULE.gh_token({}), "fixture-token")
+        self.assertEqual(command.call_args.args[0], ["/fixture/bin/gh", "auth", "token"])
+
     def test_backfill_reads_reviews_even_when_pr_was_updated_later(self):
         pr = pull_request(updated_at="2026-08-22T10:00:00Z")
         timeline = [{"event": "reviewed", "submitted_at": "2026-08-21T11:00:00Z"}]

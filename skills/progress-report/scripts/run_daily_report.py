@@ -209,9 +209,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--range', help='Fixed local time range for backfill')
     parser.add_argument('--run-dir', type=Path)
-    parser.add_argument('--deliver-only', action='store_true')
-    parser.add_argument('--collect-only', action='store_true')
-    parser.add_argument('--prepare-only', action='store_true', help='Generate and validate without any Lark writes')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--deliver-only', action='store_true')
+    mode.add_argument('--collect-only', action='store_true')
+    mode.add_argument('--prepare-only', action='store_true', help='Generate and validate without any Lark writes')
     args = parser.parse_args()
     os.chdir(ROOT)
     os.environ['LARKSUITE_CLI_NO_UPDATE_NOTIFIER'] = '1'

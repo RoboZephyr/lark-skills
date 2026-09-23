@@ -11,6 +11,8 @@ description: Generate a plain-language, decision-oriented engineering progress u
 
 运行记录保存在 gitignored 的 `.state/daily-report/<窗口结束时间>/`，包含原始数据、逐仓缓存、正文、发送回执和留档状态。采集失败只重试缺失数据；消息已发但留档失败时只补留档。成功依据是实际 Lark JSON 回执及消息/文档回读，不从 Codex 日志匹配 `om_` 字样。不要删除未完成运行的状态目录。
 
+若出现 `Unconfirmed archive insert`，说明留档请求可能只写入了部分内容，脚本会停止自动插入。先核查目标文档：已写入的内容应补齐并保留该窗口的统计标识，再用 `--deliver-only` 回读确认；只有确认完全没有写入时，才可移除 `state.json` 的 `archive_attempted` 字段后重试。保留消息回执和其他状态，避免重复发送。
+
 补发：`./launchd/run-daily-team-report.sh --range 'YYYY-MM-DD 21:00至YYYY-MM-DD 21:00'`。预览：加 `--prepare-only` 只采集并生成正文，不投递；已准备正文的投递可用 `--deliver-only`。同一窗口重复运行复用状态；历史漏发日期必须显式指定窗口，不能用执行当时的“过去24小时”替代。独立调用本 skill 的时间范围与输出模式仍按下面规则执行。
 
 ## Prerequisites
@@ -19,7 +21,7 @@ description: Generate a plain-language, decision-oriented engineering progress u
 |---|---|
 | lark-cli | `lark-cli auth status`；仅 `message_only`、`doc_only`、`doc_and_message` 需要 |
 | GitHub token | `gh auth status` 或环境变量 `GITHUB_TOKEN` |
-| python3 + ruamel.yaml | `python3 -c 'import ruamel.yaml'` |
+| python3 + ruamel.yaml | `./scripts/python.sh --check` |
 
 ## Input
 
@@ -82,7 +84,7 @@ description: Generate a plain-language, decision-oriented engineering progress u
 时间范围模式：
 
 ```bash
-python3 skills/progress-report/scripts/collect_progress.py \
+./scripts/python.sh skills/progress-report/scripts/collect_progress.py \
   --config skills/progress-report/config.yaml \
   --range "<今天|昨天|本周|上周|最近 N 天>" \
   --output /tmp/progress_report.md \
@@ -92,7 +94,7 @@ python3 skills/progress-report/scripts/collect_progress.py \
 PR 模式：
 
 ```bash
-python3 skills/progress-report/scripts/collect_progress.py \
+./scripts/python.sh skills/progress-report/scripts/collect_progress.py \
   --config skills/progress-report/config.yaml \
   --pr "<PR URL | owner/repo#123 | #123>" \
   --output /tmp/progress_report.md \
@@ -158,8 +160,8 @@ python3 skills/progress-report/scripts/collect_progress.py \
 任何 Markdown 写入飞书消息或文档前，必须先保存为本地文件并执行：
 
 ```bash
-python3 skills/progress-report/scripts/validate_lark_markdown.py --fix <markdown-file>
-python3 skills/progress-report/scripts/validate_lark_markdown.py <markdown-file>
+./scripts/python.sh skills/progress-report/scripts/validate_lark_markdown.py --fix <markdown-file>
+./scripts/python.sh skills/progress-report/scripts/validate_lark_markdown.py <markdown-file>
 ```
 
 第二条命令退出码不是 `0` 时禁止投递；修正后重新验证。该检查同时适用于 `message_only`、`doc_only`、`doc_and_message` 和定时日报留档。

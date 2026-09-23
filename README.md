@@ -46,13 +46,15 @@ Codex 入口会引用当前 clone 中的 Skill、脚本和配置；请保留该�
 
 ## 环境准备
 
-Python 数据采集脚本需要 `ruamel.yaml`。在独立虚拟环境中安装，运行脚本前激活：
+Python 脚本需要 Python 3.9+ 和 `ruamel.yaml`。在仓库根目录创建一次独立环境：
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements.txt
+./scripts/python.sh --check
 ```
+
+此后使用 `./scripts/python.sh <脚本路径> ...`，无需激活虚拟环境。交互 Skill、日报和周报入口均使用这个环境；周报调用的 Agent 也继承该 Python 路径。环境缺失或依赖不完整时会直接给出安装提示，`./install.sh --check` 会以非零状态退出。可用 `PYTHON_BIN=/绝对路径/venv/bin/python` 显式选择另一个已安装依赖的环境。
 
 ```bash
 # 安装 lark-cli
@@ -310,14 +312,16 @@ lark-skills/
 
 ## 本地检查
 
-安装并激活上面的 Python 虚拟环境后，在仓库根目录运行：
+安装上面的 Python 虚拟环境后，在仓库根目录运行：
 
 ```bash
-python -m unittest discover -s tests
+./scripts/python.sh -m unittest discover -s tests
 bash tests/test_codex_install.sh
 ```
 
 这些测试使用本地临时数据；安装器测试也在临时目录中运行，不会修改真实 Skill 安装或发送飞书消息。
+
+GitHub Actions 在 Linux / Python 3.13 和 macOS / Python 3.11 上运行上述检查。
 
 ---
 

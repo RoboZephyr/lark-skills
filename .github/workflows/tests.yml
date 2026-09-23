@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.13'
+          - os: macos-latest
+            python: '3.11'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Create project Python environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+      - name: Test Python scripts
+        run: ./scripts/python.sh -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Test isolated skill installation
+        run: bash tests/test_codex_install.sh
+      - name: Check shell syntax and whitespace
+        run: |
+          for script in install.sh uninstall.sh scripts/*.sh launchd/*.sh tests/*.sh; do
+            bash -n "$script"
+          done
+          git show --format= --check HEAD

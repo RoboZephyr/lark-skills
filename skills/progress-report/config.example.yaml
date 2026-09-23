@@ -9,7 +9,7 @@ extends_config: "skills/weekly-report/config.yaml"
 github:
   # 留空则使用 extends_config.github.repos
   repos: []
-  # 优先级: GITHUB_TOKEN 环境变量 > 本字段 > gh auth token
+  # 优先级: GITHUB_TOKEN > GH_TOKEN 环境变量 > 本字段 > gh auth token
   token: ""
 
 team:

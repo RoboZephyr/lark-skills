@@ -35,7 +35,7 @@ mkdir -p "$FIXTURE" "$TEST_HOME" "$COLLISION_HOME" "$CLAUDE_HOME"
 while IFS= read -r -d '' path; do
     mkdir -p "$FIXTURE/$(dirname "$path")"
     cp -p "$REPO_DIR/$path" "$FIXTURE/$path"
-done < <(git -C "$REPO_DIR" ls-files -z -- install.sh uninstall.sh skills)
+done < <(git -C "$REPO_DIR" ls-files --cached --others --exclude-standard -z -- install.sh uninstall.sh skills scripts requirements.txt)
 
 run_install() {
     env -i \

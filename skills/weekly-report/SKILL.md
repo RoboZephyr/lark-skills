@@ -14,8 +14,8 @@ description: 从 GitHub（可选 GitLab）收集团队 commit 数据，生成周
 | 依赖 | 验证命令 |
 |---|---|
 | lark-cli | `lark-cli auth status` |
-| python3 | `python3 --version` |
-| ruamel.yaml | `python3 -c 'import ruamel.yaml'`（init/append 索引用） |
+| python3 | `./scripts/python.sh --version` |
+| ruamel.yaml | `./scripts/python.sh --check`（init/append 索引用） |
 | GitHub token | `gh auth token` 或环境变量 `GITHUB_TOKEN` |
 | GitLab token（可选，自建 GitLab） | 环境变量 `GITLAB_TOKEN` 或 config.yaml |
 
@@ -24,7 +24,7 @@ description: 从 GitHub（可选 GitLab）收集团队 commit 数据，生成周
 第一次跑这个 skill 之前必须建立**汇总入口文档**——一篇长期存在的 Lark doc，每周报告链接都会追加到它顶部，形成时间倒序索引。
 
 ```bash
-python3 skills/weekly-report/scripts/init_index.py \
+./scripts/python.sh skills/weekly-report/scripts/init_index.py \
   --config skills/weekly-report/config.yaml \
   --title "团队工程周报"        # 可改
 ```
@@ -94,7 +94,7 @@ GitHub 采集口径：
 1. 运行 `summarize.py` 获取该成员的原始数据：
 
 ```bash
-python3 skills/weekly-report/scripts/summarize.py \
+./scripts/python.sh skills/weekly-report/scripts/summarize.py \
   --gitlab-url "<gitlab.base_url>" \
   --token "<gitlab_token>" \
   --users "<该成员 username>" \
@@ -126,7 +126,7 @@ python3 skills/weekly-report/scripts/summarize.py \
 你是周报采集 agent，负责收集 <display_name>(@<username>) 的 commit 数据并生成分析摘要。
 
 1. 执行以下命令获取原始数据：
-   python3 skills/weekly-report/scripts/summarize.py \
+   ./scripts/python.sh skills/weekly-report/scripts/summarize.py \
      --gitlab-url "<gitlab.base_url>" --token "<token>" \
      --users "<username>" --since "<since>" --until "<until>" \
      --output /tmp/weekly_<username>.md \
@@ -358,7 +358,7 @@ lark-cli im +messages-send --chat-id "<id>" --markdown "$(cat weekly_message.md)
 - 非空 → 用 `append_index.py` 在 doc 顶部 divider 下方插入本周条目
 
 ```bash
-python3 skills/weekly-report/scripts/append_index.py \
+./scripts/python.sh skills/weekly-report/scripts/append_index.py \
   --config skills/weekly-report/config.yaml \
   --week-label "<W23 2026 或 2026 第 23 周>" \
   --date-range "<YYYY-MM-DD ~ YYYY-MM-DD>" \
@@ -410,6 +410,6 @@ python3 skills/weekly-report/scripts/append_index.py \
 | 文档创建成功但无法打开 | 检查 `doc_owner_open_ids` 是否正确 |
 | 文档标题显示 "Untitled" | 确认使用当前 `docs +create`，并显式传入 `--title`；不要再使用已移除的 `--markdown` 参数 |
 | subagent 返回空数据 | 该成员本周无提交。**不要为该成员写 per-user section**,team 总览的"活跃成员 X/Y"已经表达;只在分析报告必要时一句话提及"@xxx 未活跃" |
-| `index_doc.token is empty` | 先跑 `python3 scripts/init_index.py` 建索引文档 |
+| `index_doc.token is empty` | 先跑 `./scripts/python.sh skills/weekly-report/scripts/init_index.py` 建索引文档 |
 | `could not locate anchor (callout) block_id` | 索引文档顶部 callout 被删了；恢复一个 callout 在最顶部，或 `init_index.py --force` 重建 |
 | `transfer_owner` / `permission.members.create` 报 exit 10 / `confirmation_required` | lark-cli high-risk-write 网关；init/append 脚本默认已带 `--yes`。手工调用时记得加 `--yes` |

@@ -86,6 +86,14 @@ check_deps() {
 
     info "Checking dependencies..."
 
+    # Markdown-only skills remain installable; report missing runtime setup.
+    if "$REPO_DIR/scripts/python.sh" --check; then
+        ok "Python report dependencies available"
+    else
+        warn "Python report dependencies unavailable; see README.md environment setup"
+        has_error=1
+    fi
+
     # lark-cli
     if command -v lark-cli &>/dev/null; then
         ok "lark-cli found"
@@ -332,11 +340,12 @@ main() {
     echo ""
 
     # 依赖检查
-    check_deps || true
+    local deps_status=0
+    check_deps || deps_status=$?
     echo ""
 
     if [ $check_only -eq 1 ]; then
-        exit 0
+        exit "$deps_status"
     fi
 
     # 未指定 agent 时，自动检测安装

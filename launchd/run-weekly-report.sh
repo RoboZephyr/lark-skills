@@ -29,6 +29,8 @@ cd "$REPO_DIR" || {
   exit 1
 }
 
+"$REPO_DIR/scripts/python.sh" --check || exit $?
+
 echo "$LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S %Z') starting"
 
 if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -63,7 +65,7 @@ fi
 
 if [ -x "$CLAUDE_BIN" ]; then
   echo "$LOG_PREFIX trying Claude: $CLAUDE_BIN"
-  "$CLAUDE_BIN" -p "/weekly-report 上周" \
+  "$REPO_DIR/scripts/python.sh" --exec "$CLAUDE_BIN" -p "/weekly-report 上周" \
     --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
     >"$CLAUDE_LOG" 2>&1
   claude_status=$?
@@ -83,7 +85,7 @@ if [ ! -x "$CODEX_BIN" ]; then
 fi
 
 echo "$LOG_PREFIX trying Codex: $CODEX_BIN"
-"$CODEX_BIN" exec \
+"$REPO_DIR/scripts/python.sh" --exec "$CODEX_BIN" exec \
   --dangerously-bypass-approvals-and-sandbox \
   -C "$REPO_DIR" \
   "$PROMPT" \
