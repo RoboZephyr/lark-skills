@@ -22,3 +22,4 @@ tech_design_*.md
 
 # Cloudflare Wrangler 本地缓存
 .wrangler/
+.state/

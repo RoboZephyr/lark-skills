@@ -7,7 +7,11 @@ description: Generate a plain-language, decision-oriented engineering progress u
 
 生成一份面向团队同步的工程进度报告：从 GitHub 仓库最近代码改动或指定 PR 采集数据，先形成可追溯事实底稿，再改写成平白、面向决策的同步内容，说明“做了什么 / 为什么这样做 / 对工作流有什么意义 / 还有什么待确认 / 下一步是什么”。根据用户请求或 `output.mode` 决定只本地输出、只发送飞书消息、只创建飞书文档，或创建文档后投递消息。
 
-除按需调用外，本 skill 还承载无人值守的**定时团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`，由 `codex exec` 执行本 skill，以「过去24小时」滚动窗口采集（与上一期无缝衔接），`message_only` 私发负责人并插入 `lark.daily_log_doc` 留档文档最前。
+除按需调用外，本 skill 还承载无人值守的**定时团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`。入口调用 `scripts/run_daily_report.py`，固定统计北京时间前一天 21:00 到当天 21:00（使用机器本地时区），重试不会移动窗口。脚本采集数据，`codex exec` 只改写本地正文，随后脚本校验、以 bot 私发负责人并插入既有 `lark.daily_log_doc` 文档最前。
+
+运行记录保存在 gitignored 的 `.state/daily-report/<窗口结束时间>/`，包含原始数据、逐仓缓存、正文、发送回执和留档状态。采集失败只重试缺失数据；消息已发但留档失败时只补留档。成功依据是实际 Lark JSON 回执及消息/文档回读，不从 Codex 日志匹配 `om_` 字样。不要删除未完成运行的状态目录。
+
+补发：`./launchd/run-daily-team-report.sh --range 'YYYY-MM-DD 21:00至YYYY-MM-DD 21:00'`。预览：加 `--prepare-only` 只采集并生成正文，不投递；已准备正文的投递可用 `--deliver-only`。同一窗口重复运行复用状态；历史漏发日期必须显式指定窗口，不能用执行当时的“过去24小时”替代。独立调用本 skill 的时间范围与输出模式仍按下面规则执行。
 
 ## Prerequisites
 
@@ -23,7 +27,7 @@ description: Generate a plain-language, decision-oriented engineering progress u
 
 **时间范围模式**：
 
-- `过去24小时` / `24h` → 此刻往前推 24 小时（定时日报用这个，天与天之间无缝衔接不漏数据）
+- `过去24小时` / `24h` → 此刻往前推 24 小时（交互查询使用；定时日报入口另行冻结 21:00 到次日 21:00 的窗口）
 - `今天` → 今天 00:00 到现在
 - `昨天` → 昨天 00:00 到 23:59
 - `本周` → 本周一到今天
@@ -99,7 +103,7 @@ python3 skills/progress-report/scripts/collect_progress.py \
 
 - PR 的 `updated_at` 只用于发现候选；最终只保留窗口内新开、推入 commit、评审/评论、状态推进、关闭或合并的活跃 PR，忽略 `head_ref_deleted` 等维护事件
 - 活跃 PR 的提交从 GitHub PR commits 读取，因此 squash merge 或删除源分支后仍保留原始提交；按 SHA 全局去重，并排除已由原始提交代表的 synthetic squash/merge commit
-- 默认扫描所有现存分支（`report.include_all_branches: true`）作为补充，只纳入尚未开 PR 的分支提交和直接 push
+- 默认扫描所有现存分支（`report.include_all_branches: true`）：GraphQL 按仓库每页 30 个分支批量读取窗口内提交；分支和提交均完整分页，不再受旧 `max_branches_per_repo` 限制。PR 原始提交及活动证据继续使用 REST，列表分页遇到窗口外日期立即停止。默认 3 个仓库 / 4 个 PR 并发，单请求支持超时、截断响应和暂时性服务错误重试。可用 `--cache-dir` 复用相同窗口的成功采集结果；任何仓库失败都会明确报错，不把缺失数据写成零活动。
 - `raw.stats` 是团队与成员数字的唯一事实来源；Agent 不得自行重数或改写人数、提交数和 PR 数
 - PR 模式只采集该 PR 的 commits、files 和 PR 状态，不受时间范围限制
 - 只保留能匹配团队成员 GitHub login 或 extra_emails 的提交

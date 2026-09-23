@@ -22,9 +22,10 @@ report:
   include_all_branches: true
   include_open_prs: true
   # 并发核验候选 PR 的原始 commits 与 timeline
-  github_workers: 8
+  github_workers: 4
+  repo_workers: 3
   # PR 模式不受时间范围限制；通过 --pr 指定 PR URL / owner/repo#123 / #123
-  max_branches_per_repo: 80
+  # 所有分支与提交完整分页，不再按分支数量截断。
   max_commits_per_section: 12
   language: zh
 
