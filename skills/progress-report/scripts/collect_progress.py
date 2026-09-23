@@ -460,7 +460,8 @@ def fetch_pr_activity(token: str, pr: dict, since: str, until: str) -> dict:
     number = pr["number"]
     commits = github_get(token, f"/repos/{owner}/{repo}/pulls/{number}/commits")
     activity = classify_pr_activity(pr, commits, [], since, until)
-    if not activity["active"] and in_window(pr.get("updated_at"), since, until):
+    # Later updates do not erase reviews/comments inside a backfill window.
+    if not activity["active"] and (pr.get("updated_at") or "") >= since:
         timeline = github_get(token, f"/repos/{owner}/{repo}/issues/{number}/timeline")
         activity = classify_pr_activity(pr, commits, timeline, since, until)
     return activity
@@ -477,7 +478,7 @@ def collect_pr_activity(
     evidence = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
-            pool.submit(cached_read, cache_dir, ["pr-v1", pr, since, until],
+            pool.submit(cached_read, cache_dir, ["pr-v2", pr, since, until],
                         lambda pr=pr: fetch_pr_activity(token, pr, since, until)): pr
             for pr in prs
         }

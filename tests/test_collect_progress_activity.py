@@ -62,6 +62,15 @@ def pull_request(**overrides) -> dict:
 
 
 class PullRequestActivityTest(unittest.TestCase):
+    def test_backfill_reads_reviews_even_when_pr_was_updated_later(self):
+        pr = pull_request(updated_at="2026-08-22T10:00:00Z")
+        timeline = [{"event": "reviewed", "submitted_at": "2026-08-21T11:00:00Z"}]
+        with patch.object(MODULE, "github_get", side_effect=[[], timeline]) as request:
+            activity = MODULE.fetch_pr_activity("test", pr, SINCE, UNTIL)
+        self.assertTrue(activity["active"])
+        self.assertEqual(activity["reasons"], [{"kind": "reviewed", "at": "2026-08-21T11:00:00Z"}])
+        self.assertEqual(request.call_count, 2)
+
     def test_retries_incomplete_response(self):
         response = MagicMock()
         response.__enter__.return_value.read.return_value = b'[]'

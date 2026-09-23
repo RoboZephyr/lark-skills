@@ -145,6 +145,12 @@ def deliver(folder, config, state):
         snapshot = lark('docs', '+fetch', '--doc', archive['token'], '--scope', 'keyword', '--keyword', marker)
         content = snapshot['data']['document']['content']
         if not document_has_marker(content, marker):
+            if state.get('archive_attempted'):
+                raise RuntimeError('Unconfirmed archive insert; inspect existing blocks before retrying')
+            # A lost response can also mean partial insertion. Persist intent
+            # before writing, and only recover automatically with marker proof.
+            state['archive_attempted'] = True
+            save(folder / 'state.json', state)
             result = lark('docs', '+update', '--doc', archive['token'], '--command', 'block_insert_after',
                           '--block-id', '0', '--doc-format', 'markdown', '--content', '@./archive.md', cwd=folder)
             save(folder / 'archive-receipt.json', result)
