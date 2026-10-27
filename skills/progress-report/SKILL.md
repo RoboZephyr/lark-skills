@@ -7,7 +7,7 @@ description: Generate a plain-language, decision-oriented engineering progress u
 
 生成一份面向团队同步的工程进度报告：从 GitHub 仓库最近代码改动或指定 PR 采集数据，先形成可追溯事实底稿，再改写成平白、面向决策的同步内容，说明“做了什么 / 为什么这样做 / 对工作流有什么意义 / 还有什么待确认 / 下一步是什么”。根据用户请求或 `output.mode` 决定只本地输出、只发送飞书消息、只创建飞书文档，或创建文档后投递消息。
 
-除按需调用外，本 skill 还承载无人值守的**定时团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`。入口调用 `scripts/run_daily_report.py`，固定统计北京时间前一天 21:00 到当天 21:00（使用机器本地时区），重试不会移动窗口。脚本采集数据，`codex exec` 只改写本地正文，随后脚本校验、以 user 身份向负责人私发 Card 2.0 卡片，并以 bot 身份插入既有 `lark.daily_log_doc` 文档最前。
+除按需调用外，本 skill 还承载无人值守的**定时团队日报**：`launchd/com.lark-skills.daily-team-report.plist` 每天 21:00 触发 `launchd/run-daily-team-report.sh`。入口调用 `scripts/run_daily_report.py`，固定统计北京时间前一天 21:00 到当天 21:00（使用机器本地时区），重试不会移动窗口。脚本采集数据，`codex exec` 只改写本地正文，随后脚本校验、以 bot 身份向负责人私发 Card 2.0 卡片，并以 bot 身份插入既有 `lark.daily_log_doc` 文档最前。
 
 运行记录保存在 gitignored 的 `.state/daily-report/<窗口结束时间>/`，包含原始数据、逐仓缓存、正文、发送回执和留档状态。采集失败只重试缺失数据；消息已发但留档失败时只补留档。成功依据是实际 Lark JSON 回执及消息/文档回读，不从 Codex 日志匹配 `om_` 字样。不要删除未完成运行的状态目录。
 
@@ -318,7 +318,7 @@ lark-cli im +messages-send --user-id "<open_id>" --markdown "$(cat progress_mess
 5. 0 数据时不要编造，输出“该范围内未匹配到团队成员代码改动”，并建议检查仓库配置、GitHub 用户映射或时间范围。
 6. 默认不要创建飞书文档或发送消息；只有用户明确要求或 `output.mode` 指定时才执行外部写入。
 7. 飞书文档创建后必须自动 transfer owner，并重新授权 bot；权限命令必须带 `--yes`。
-8. 飞书文档和群消息使用 bot 身份；定时日报私聊使用 user 身份。
+8. 飞书文档、群消息及定时日报私聊统一使用 bot 身份；定时日报使用配置的曹有米 profile，由机器人向负责人发送。
 9. 群消息面向团队协作，不面向代码审计；把可追溯证据放进文档或本地报告，不要把第一屏写成提交清单。
 10. 群消息的验收标准是「没读过内部文档的人也能看懂」：默认 200 字上下，零内部行话与编号；发送前先给用户 review 一版，用户确认后再投递。
 11. 所有飞书 Markdown 投递前必须通过 `validate_lark_markdown.py`；PR 范围不得使用 ASCII `~`。

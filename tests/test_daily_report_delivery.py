@@ -79,8 +79,10 @@ class AmbiguousArchiveTest(unittest.TestCase):
 
         def api(*args, **kwargs):
             if args[1] == '+messages-send':
+                self.assertEqual(kwargs.get('identity'), 'bot')
                 return {'ok': True, 'data': {'message_id': MESSAGE_ID}}
             if args[1] == '+messages-mget':
+                self.assertEqual(kwargs.get('identity'), 'bot')
                 return {'ok': True, 'data': {'messages': [{'message_id': MESSAGE_ID}]}}
             if args[1] == '+fetch':
                 # A partially inserted document has no trailing run marker.

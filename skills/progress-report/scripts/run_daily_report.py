@@ -104,7 +104,7 @@ def deliver(folder, config, state):
         raise ValueError('Archive must not link to itself')
     marker = state['marker']
     card = build_card(body, raw)
-    fingerprint = hashlib.sha256(json.dumps([card, body, archive, config['delivery']['targets'], 'user'], sort_keys=True).encode()).hexdigest()
+    fingerprint = hashlib.sha256(json.dumps([card, body, archive, config['delivery']['targets'], 'bot'], sort_keys=True).encode()).hexdigest()
     if state.get('delivery_fingerprint') not in (None, fingerprint):
         raise RuntimeError('Content or recipients changed after delivery preparation; inspect saved receipts')
     save(folder / 'card.json', card)
@@ -131,12 +131,12 @@ def deliver(folder, config, state):
             save(folder / 'state.json', state)
             receipt = lark('im', '+messages-send', '--user-id', target_id,
                            '--msg-type', 'interactive', '--content', json.dumps(card, ensure_ascii=False),
-                           '--idempotency-key', key, identity='user')
+                           '--idempotency-key', key, identity='bot')
             receipts[target_id] = receipt
             save(folder / 'state.json', state)
             sent_message_id(receipt)
         message_id = sent_message_id(receipts[target_id])
-        readback = lark('im', '+messages-mget', '--message-ids', message_id, '--no-reactions', identity='user')
+        readback = lark('im', '+messages-mget', '--message-ids', message_id, '--no-reactions', identity='bot')
         messages = readback['data'].get('messages', [])
         if not any(item.get('message_id') == message_id for item in messages):
             raise RuntimeError('Message receipt could not be read back')

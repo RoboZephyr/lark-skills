@@ -44,13 +44,13 @@ class CardTest(unittest.TestCase):
         sent, inserted = [], []
         def api(*args, **kwargs):
             if args[1] == '+messages-send':
-                self.assertEqual(kwargs['identity'], 'user')
+                self.assertEqual(kwargs['identity'], 'bot')
                 self.assertIn('interactive', args)
                 self.assertNotIn('--markdown', args)
                 sent.append(json.loads(args[args.index('--content') + 1]))
                 return {'ok': True, 'data': {'message_id': mid}}
             if args[1] == '+messages-mget':
-                self.assertEqual(kwargs['identity'], 'user')
+                self.assertEqual(kwargs['identity'], 'bot')
                 return {'ok': True, 'data': {'messages': [{'message_id': mid}]}}
             if args[1] == '+fetch':
                 return {'ok': True, 'data': {'document': {'content': '<p>daily-card-test</p>' if inserted else ''}}}
